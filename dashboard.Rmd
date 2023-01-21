@@ -1,0 +1,113 @@
+---
+title: "Industry Forecasts"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+runtime: shiny   
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(readxl)
+library(here)
+library(janitor)
+colors <- c("Employment" = "blue", "Old Forecast" = "red", "New Forecast" = "orange", "Driver Data" = "black")
+employment <- read_excel(here("data", list.files(here("data"), pattern = "Employment")), skip = 2)%>%
+  pivot_longer(cols=-contains("Industry"), names_to="year", values_to = "value")%>%
+  clean_names()%>%
+  mutate(year=as.numeric(year))%>%
+  unite(industry, industry_code, industry, sep = ": ")
+industries <- unique(employment$industry)
+
+old_forecast <- read_excel(here("data", list.files(here("data"), pattern = "Industry Forecast")))%>%
+  pivot_longer(cols=-contains("Ind"), names_to="year", values_to = "value")%>%
+  clean_names()%>%
+  mutate(year=as.numeric(year))%>%
+  unite(industry, ind_code, industry, sep = ": ")
+
+driver_data <- read_excel(here("data", list.files(here("data"), pattern = "Driver")))%>%
+  pivot_longer(cols=-contains("Ind"), names_to="year", values_to = "value")%>%
+  clean_names()%>%
+  mutate(year=as.numeric(year))%>%
+  unite(industry, ind_code, ind_des, sep = ": ")
+
+```
+
+Inputs {.sidebar}
+-------------------------------------
+
+```{r}
+selectInput(
+  "industry",
+  "Select an Industry",
+  industries,
+  selected = industries[1]
+)
+
+reactive_employment <- reactive({
+  employment%>%
+    filter(industry==input$industry)
+})
+
+reactive_old <- reactive({
+  old_forecast%>%
+    filter(industry==input$industry)
+})
+
+reactive_new <- reactive({
+  old_forecast%>%
+    filter(industry==input$industry)%>%
+    mutate(year=year+1)
+})
+
+reactive_driver <- reactive({
+  driver_data%>%
+    filter(industry==input$industry)
+})
+
+```
+ 
+Row {data-height=800}
+-------------------------------------
+
+### `r reactive({input$industry})`
+
+```{r, fig.retina=2}
+renderPlot({
+  ggplot()+
+    geom_line(data=reactive_employment(), mapping=aes(year,value, colour="Employment"), lwd=2)+
+    geom_line(data=reactive_old(), mapping=aes(year,value, colour="Old Forecast"), lwd=2)+
+    geom_line(data=reactive_new(), mapping=aes(year,value, colour="New Forecast"), lwd=2)+
+    geom_line(data=reactive_driver(), mapping=aes(year,value, colour="Driver Data"), lwd=2)+
+    scale_color_manual(values = colors)+
+    scale_y_continuous(labels = scales::comma)+
+    labs(x="",y="",color="")+
+    theme(legend.position="bottom")+ 
+    theme(text = element_text(size = 20))
+})
+```
+
+Row {data-height=200}
+-------------------------------------
+
+### Last year's CAGRS
+
+```{r}
+```
+
+### This year's CAGRS
+
+```{r}
+```
+
+### Budget Constraint
+
+```{r}
+```
+
+
+
+
+
