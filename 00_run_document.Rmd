@@ -1,0 +1,314 @@
+---
+title: "Industry Forecasts"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+runtime: shiny   
+---
+
+```{r setup, include=FALSE}
+# libraries---------------------
+library(flexdashboard)
+library(tidyverse)
+library(readxl)
+library(here)
+library(janitor)
+library(DT)
+
+# constants-----------------------------
+historic_start <- 2010
+historic_end <- 2019
+colors <- c("Employment" = "black", "Last Year" = "brown", "Candidate" = "orange", "Driver Data" = "blue", "Forecast Already" = "red")
+
+# if forecast table doesnt exist create it.--------------------
+if (!file.exists(here("out", "forecasts.csv"))) {
+  tibble(industry = character(), year = numeric(), value = numeric()) %>%
+    write_csv(here("out", "forecasts.csv"))
+}
+
+# functions------------------
+get_cagr <- function(tbbl, start_year, end_year) {
+  start_val <- filter(tbbl, year == start_year) %>%
+    pull(value)
+  end_val <- filter(tbbl, year == end_year) %>%
+    pull(value)
+  c(start_year, end_year, scales::percent((end_val / start_val)^(1 / (end_year - start_year)) - 1, accuracy = .1))
+}
+read_pivot_clean <- function(pattern, skip) {
+  read_excel(here("data", list.files(here("data"), pattern = pattern)), skip = skip) %>%
+    rename(
+      code = contains("code"),
+      industry = contains("ind") & !contains("code")
+    ) %>%
+    pivot_longer(cols = -c(industry, code), names_to = "year", values_to = "value") %>%
+    clean_names() %>%
+    mutate(year = as.numeric(year)) %>%
+    unite(industry, code, industry, sep = ": ")
+}
+
+# read in the data--------------------------
+employment <- read_pivot_clean("Employment", 2)
+old_forecast <- read_pivot_clean("Industry Forecast", 0)
+driver_data <- read_pivot_clean("Driver", 0)
+forecast_already <- read_csv(here("out", "forecasts.csv")) %>%
+  group_by(industry, year) %>%
+  summarize(value = last(value)) # only the most recent forecast
+constraint <- read_csv(here("data", "constraint.csv"))
+
+# preliminary calculations-------------------
+industries <- unique(employment$industry) # for the drop down list.
+forecast_years <- old_forecast %>% # the years to be forecast
+  distinct(year) %>%
+  pull(year) + 1
+industry_share_last_year <- employment %>% # for keeping track of how much has been forecast relative to constraint.
+  filter(year == max(year), industry != "ind00-ALL") %>%
+  mutate(
+    industry_proportion = value / sum(value),
+    industry = industry
+  )
+if (nrow(forecast_already > 0)) {
+  forecasted_industries <- forecast_already %>%
+    select(industry) %>%
+    distinct() #which industries have we forecast already?
+  `Percent Forecasted` <- inner_join(industry_share_last_year, forecasted_industries, by = "industry") %>%
+    summarize(industry_proportion = sum(industry_proportion)) %>%
+    mutate(industry_proportion = scales::percent(industry_proportion, accuracy = .01)) %>%
+    pull() # what share of total employment do the forecast industries make?
+  forecasted_by_year <- forecast_already %>%
+    filter(year < mean(year)) %>% # only for the first 5 years of forecast
+    group_by(year) %>%
+    summarize(total = sum(value)) %>% #total employment forecast already.
+    inner_join(constraint, by = "year") %>% # the budget constraint (top line employment)
+    mutate(
+      `#` = nrow(forecasted_industries),
+      `%` = `Percent Forecasted`,
+      `Forecasts / Constraint` = scales::percent(total / employment, accuracy = .01)
+    ) %>%
+    select(-total, -employment)
+} else {
+  forecasted_by_year <- tibble(
+    Year = forecast_years[1:5],
+    `#` = rep(0, 5),
+    `%` = rep(0, 5),
+    `Forecasts / Constraint` = rep(0, 5)
+  )
+}
+```
+
+Inputs {.sidebar}
+-------------------------------------
+
+```{r}
+actionButton("reset", "Reset to clear adjustments")
+selectInput(
+  "industry",
+  "Select an Industry",
+  industries,
+  selected = industries[1]
+)
+sliderInput("shift", "Shift up or down",
+  min = .8, max = 1.2,
+  value = 1, step = .01
+)
+sliderInput("slope", "Change slope",
+  min = .98, max = 1.02,
+  value = 1, step = .001
+)
+actionButton("save", "Write forecast to disk")
+sliderInput("adjust_first", paste("Adjust ", forecast_years[1]),
+  min = .8, max = 1.2,
+  value = 1, step = .01
+)
+sliderInput("adjust_second", paste("Adjust ", forecast_years[2]),
+  min = .8, max = 1.2,
+  value = 1, step = .01
+)
+sliderInput("adjust_third", paste("Adjust ", forecast_years[3]),
+  min = .8, max = 1.2,
+  value = 1, step = .01
+)
+sliderInput("adjust_fourth", paste("Adjust ", forecast_years[4]),
+  min = .8, max = 1.2,
+  value = 1, step = .01
+)
+sliderInput("adjust_fifth", paste("Adjust ", forecast_years[5]),
+  min = .8, max = 1.2,
+  value = 1, step = .01
+)
+sliderInput("adjust_sixth", paste("Adjust ", forecast_years[6]),
+  min = .8, max = 1.2,
+  value = 1, step = .01
+)
+sliderInput("adjust_seventh", paste("Adjust ", forecast_years[7]),
+  min = .8, max = 1.2,
+  value = 1, step = .01
+)
+sliderInput("adjust_eighth", paste("Adjust ", forecast_years[8]),
+  min = .8, max = 1.2,
+  value = 1, step = .01
+)
+sliderInput("adjust_ninth", paste("Adjust ", forecast_years[9]),
+  min = .8, max = 1.2,
+  value = 1, step = .01
+)
+sliderInput("adjust_tenth", paste("Adjust ", forecast_years[10]),
+  min = .8, max = 1.2,
+  value = 1, step = .01
+)
+sliderInput("adjust_eleventh", paste("Adjust ", forecast_years[11]),
+  min = .8, max = 1.2,
+  value = 1, step = .01
+)
+observeEvent(input$reset, {
+  updateSliderInput(inputId = "shift", value = 1)
+  updateSliderInput(inputId = "slope", value = 1)
+  updateSliderInput(inputId = "adjust_first", value = 1)
+  updateSliderInput(inputId = "adjust_second", value = 1)
+  updateSliderInput(inputId = "adjust_third", value = 1)
+  updateSliderInput(inputId = "adjust_fourth", value = 1)
+  updateSliderInput(inputId = "adjust_fifth", value = 1)
+  updateSliderInput(inputId = "adjust_sixth", value = 1)
+  updateSliderInput(inputId = "adjust_seventh", value = 1)
+  updateSliderInput(inputId = "adjust_eighth", value = 1)
+  updateSliderInput(inputId = "adjust_ninth", value = 1)
+  updateSliderInput(inputId = "adjust_tenth", value = 1)
+  updateSliderInput(inputId = "adjust_eleventh", value = 1)
+})
+# reactive elements------------------------
+reactive_employment <- reactive({
+  employment %>%
+    filter(industry == input$industry)
+})
+reactive_employment_cagr <- reactive({
+  get_cagr(reactive_employment(), historic_start, historic_end)
+})
+
+reactive_old <- reactive({
+  old_forecast %>%
+    filter(industry == input$industry)
+})
+
+reactive_old_cagr <- reactive({
+  ffy <- get_cagr(reactive_old(), min(forecast_years) - 1, mean(forecast_years) - 1)
+  sfy <- get_cagr(reactive_old(), mean(forecast_years) - 1, max(forecast_years) - 1)
+  ty <- get_cagr(reactive_old(), min(forecast_years) - 1, max(forecast_years) - 1)
+  temp <- t(bind_cols(ffy, sfy, ty))
+  colnames(temp) <- c("Start", "End", "CAGR")
+  temp
+})
+
+reactive_new <- reactive({
+  adjustment_vector <- c(
+    input$adjust_first,
+    input$adjust_second,
+    input$adjust_third,
+    input$adjust_fourth,
+    input$adjust_fifth,
+    input$adjust_sixth,
+    input$adjust_seventh,
+    input$adjust_eighth,
+    input$adjust_ninth,
+    input$adjust_tenth,
+    input$adjust_eleventh
+  )
+  adjustments <- tibble(year = forecast_years, slope = input$slope^(forecast_years - min(forecast_years)), adjustment_vector = adjustment_vector)
+  old_forecast %>%
+    filter(industry == input$industry) %>%
+    mutate(year = year + 1) %>%
+    mutate(value = value * input$shift) %>%
+    full_join(adjustments) %>%
+    mutate(
+      value = value * slope,
+      value = value * adjustment_vector
+    ) %>%
+    select(-slope, -adjustment_vector)
+})
+
+reactive_new_cagr <- reactive({
+  ffy <- get_cagr(reactive_new(), min(forecast_years), mean(forecast_years))
+  sfy <- get_cagr(reactive_new(), mean(forecast_years), max(forecast_years))
+  ty <- get_cagr(reactive_new(), min(forecast_years), max(forecast_years))
+  temp <- t(bind_cols(ffy, sfy, ty))
+  colnames(temp) <- c("Start", "End", "CAGR")
+  temp %>%
+    as_tibble() %>%
+    select(CAGR, Start, End)
+})
+
+reactive_driver <- reactive({
+  driver_data %>%
+    filter(industry == input$industry)
+})
+reactive_already <- reactive({
+  forecast_already %>%
+    filter(industry == input$industry)
+})
+observeEvent(input$save, {
+  write.table(reactive_new(),
+    here("out", "forecasts.csv"),
+    append = TRUE,
+    quote = TRUE,
+    sep = ",",
+    row.names = FALSE,
+    col.names = !file.exists(here("out", "forecasts.csv"))
+  )
+})
+```
+ 
+Row {data-height=700}
+-------------------------------------
+
+### `r reactive({paste0(input$industry, " (CAGR ", paste(reactive_employment_cagr(),collapse=" "),")")})`
+
+```{r, fig.retina=2}
+renderPlot({
+  ggplot() +
+    geom_line(data = reactive_employment(), mapping = aes(year, value, colour = "Employment"), lwd = 2) +
+    geom_line(data = reactive_old(), mapping = aes(year, value, colour = "Last Year"), lwd = 2) +
+    geom_line(data = reactive_new(), mapping = aes(year, value, colour = "Candidate"), lwd = 2) +
+    geom_line(data = reactive_driver(), mapping = aes(year, value, colour = "Driver Data"), lwd = 2) +
+    geom_line(data = reactive_already(), mapping = aes(year, value, colour = "Forecast Already"), lwd = 2) +
+    scale_color_manual(values = colors) +
+    scale_y_continuous(labels = scales::comma) +
+    labs(x = "", y = "", color = "") +
+    theme(legend.position = "bottom") +
+    theme(text = element_text(size = 20))
+})
+```
+
+Row {data-height=300}
+-------------------------------------
+
+### Last year's forecast
+
+```{r}
+renderDT({
+  datatable(reactive_old_cagr(),
+    options = list(dom = "t"),
+    rownames = FALSE
+  )
+})
+```
+
+### Candidate forecast
+
+```{r}
+renderDT({
+  datatable(reactive_new_cagr(),
+    options = list(dom = "t"),
+    rownames = FALSE
+  )
+})
+```
+
+### Budget Constraint
+
+```{r}
+renderDT({
+  datatable(forecasted_by_year,
+    options = list(dom = "t"),
+    rownames = FALSE
+  )
+})
+```
