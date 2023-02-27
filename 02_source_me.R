@@ -17,7 +17,7 @@ historic_end <- 2019 #pre covid
 bcPalette <- c("#1f4181", "#fabc29", "#000000")
 # functions-----------------
 read_pivot_clean <- function(pattern, skip) {
-  read_excel(here("data", list.files(here("data"), pattern = pattern)), skip = skip) %>%
+  read_excel(here("data","current", list.files(here("data","current"), pattern = pattern)), skip = skip) %>%
     rename(
       code = contains("code"),
       industry = contains("ind") & !contains("code")
@@ -72,7 +72,7 @@ employment <- read_pivot_clean("Employment", 2)%>%
   mutate(series = "Historical")
 old_forecast <- read_pivot_clean("Industry Forecast", 0)%>%
   filter(industry!="ind08: Construction")
-forecast_already <- read_csv(here("out", "forecasts.csv")) %>%
+forecast_already <- read_csv(here("out","current", "forecasts.csv")) %>%
   group_by(industry, year) %>%
   summarize(value = last(value)) # only the most recent forecast
 
@@ -139,10 +139,10 @@ wide <- full_join(wide, old_cagr, by = c("industry", "series"))%>%
          `10 year CAGR` = ifelse(is.na(`10 year CAGR.x`), `10 year CAGR.y`, `10 year CAGR.x`))%>%
   select(-ends_with(".x"), -ends_with(".y"))
 # Create the pdf (plot) output--------
-pdf(here("out", paste0("LMO_", forecast_start, "_industry_forecast.pdf")), onefile = TRUE, height=8.5, width=11)
+pdf(here("out","current", paste0("LMO_", forecast_start, "_industry_forecast.pdf")), onefile = TRUE, height=8.5, width=11)
 nested%>%
   select(plots)%>%
   walk(print)
 dev.off()
 # write the wide format data to disk--------
-write_csv(wide, here("out", paste0("LMO_", forecast_start, "_industry_forecast.csv")), na ="")
+write_csv(wide, here("out","current", paste0("LMO_", forecast_start, "_industry_forecast.csv")), na ="")
