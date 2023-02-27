@@ -23,6 +23,7 @@ library(here)
 library(janitor)
 library(DT)
 library(markdown)
+library(shinyalert)
 # constants-----------------------------
 historic_start <- 2010
 historic_end <- 2019
@@ -42,8 +43,10 @@ get_cagr <- function(tbbl, start_year, end_year) {
     pull(value)
   c(start_year, end_year, scales::percent((end_val / start_val)^(1 / (end_year - start_year)) - 1, accuracy = .1))
 }
-
+# make fake forecasts for industries not forecast last year, where the fake forecast starts with 
+# last observed level of employment, and then grows at the 2010-2019 CAGR.
 make_forecast <- function(tbbl){
+  shinyalert("This is a new industry.")
   tbbl <- tbbl%>%
     mutate(year=as.numeric(year))
   last_value <- tbbl%>%
@@ -113,7 +116,7 @@ constraint <- read_csv(here("data","current", "constraint.csv"))
 
 # preliminary calculations-------------------
 industries <- unique(employment$industry) # for the drop down list.
-default_industry <- industries[!industries %in% unique(forecast_already$industry)][1] #for industry to display
+default_industry <- industries[!industries %in% unique(forecast_already$industry)][1] #make the default choice the next industry.
 
 forecast_years <- old_forecast %>% # the years to be forecast
   distinct(year) %>%
@@ -240,7 +243,7 @@ reactive_employment <- reactive({
 reactive_employment_cagr <- reactive({
   get_cagr(reactive_employment(), historic_start, historic_end)
 })
-
+#create a fake forecast for industries that were not forecast last year.----------------------
 reactive_old <- reactive({
   temp <- old_forecast %>%
     filter(industry == input$industry)
