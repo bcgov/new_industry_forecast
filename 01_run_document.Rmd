@@ -113,6 +113,8 @@ constraint <- read_csv(here("data","current", "constraint.csv"))
 
 # preliminary calculations-------------------
 industries <- unique(employment$industry) # for the drop down list.
+default_industry <- industries[!industries %in% unique(forecast_already$industry)][1] #for industry to display
+
 forecast_years <- old_forecast %>% # the years to be forecast
   distinct(year) %>%
   pull(year) + 1
@@ -160,7 +162,7 @@ selectInput(
   "industry",
   "Select an Industry",
   industries,
-  selected = industries[1]
+  selected = default_industry
 )
 sliderInput("shift", "Shift up or down",
   min = .8, max = 1.2,
