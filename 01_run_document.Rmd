@@ -46,7 +46,7 @@ get_cagr <- function(tbbl, start_year, end_year) {
 # make fake forecasts for industries not forecast last year, where the fake forecast starts with 
 # last observed level of employment, and then grows at the 2010-2019 CAGR.
 make_forecast <- function(tbbl){
-  shinyalert("This is a new industry.")
+  shinyalert("This is a new industry. Last year's forecast is fake")
   tbbl <- tbbl%>%
     mutate(year=as.numeric(year))
   last_value <- tbbl%>%
@@ -91,7 +91,7 @@ old_forecast <- read_excel(here("data","current","LMO_2022_industry_forecast_Mar
   unite(industry, code, industry, sep=": ")%>%
   mutate(year=as.numeric(year))
          
-driver_data <- read_excel(here("data","current","Driver-based forecast 2023 Feb 22.xlsx"))%>%
+driver_data <- read_excel(here("data","current","Driver-based forecast 2023 Feb 27.xlsx"))%>%
   select(-contains("code"))%>%
   rename(industry=`Ind Des`)%>%
   pivot_longer(cols=-industry, names_to = "year", values_to = "value")%>%
@@ -284,7 +284,7 @@ reactive_new <- reactive({
     full_join(adjustments) %>%
     mutate(
       value = value * slope,
-      value = value * adjustment_vector
+      value = round(value * adjustment_vector)
     ) %>%
     select(-slope, -adjustment_vector)
 })
