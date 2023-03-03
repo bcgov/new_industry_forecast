@@ -68,10 +68,38 @@ new_plot <- function(group, tbbl, old_cagr, new_cagr){
 }
 
 # read in the data--------------------------
-employment <- read_pivot_clean("Employment", 2)%>%
-  mutate(series = "Historical")
-old_forecast <- read_pivot_clean("Industry Forecast", 0)%>%
-  filter(industry!="ind08: Construction")
+
+employment <- read_excel(here("data","current","Employment for 64 LMO Industries,2000-2022.xlsx"), skip = 2)%>%
+  pivot_longer(cols=-contains("Lmo"), names_to="year", values_to = "value")%>%
+  rename(industry=contains("industry"),
+         code=contains("code"))%>%
+  filter(str_detect(code, "ind"))%>% #not the totals and subtotals
+  group_by(code, industry)%>%
+  nest()%>%
+  rename(employment=data)
+
+old_forecast <- read_excel(here("data","current","LMO_2022_industry_forecast_Mar04_For Stokes.xlsx"))%>%
+  select(-contains("CAGR"),-COMMENT)%>%
+  filter(str_detect(industry, "ind"))%>%
+  pivot_longer(cols=-industry, names_to = "year", values_to = "value")%>%
+  mutate(year=as.numeric(year),
+         industry=str_sub(industry, start=7))%>%
+  filter(year>2021)%>%
+  group_by(industry)%>%
+  nest()%>%
+  rename(old_forecast=data)%>%
+  full_join(employment)%>%
+  select(-employment)%>%
+  filter(!is.na(code))%>%
+  unnest(old_forecast)%>%
+  unite(industry, code, industry, sep=": ")%>%
+  mutate(year=as.numeric(year))
+
+employment <- employment%>%
+  unnest(employment)%>%
+  unite(industry, code, industry, sep=": ")%>%
+  mutate(year=as.numeric(year))
+
 forecast_already <- read_csv(here("out","current", "forecasts.csv")) %>%
   group_by(industry, year) %>%
   summarize(value = last(value)) # only the most recent forecast
@@ -100,7 +128,6 @@ wide <- long%>%
   arrange(industry, series)
 #nest the long format dataframe by industry------
 nested <- long%>%
-  filter(industry != "ind08: Construction")%>%
   group_by(industry)%>%
   nest()%>%
   mutate(new_cagr = map(data, get_new_cagr),

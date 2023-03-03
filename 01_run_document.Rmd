@@ -65,7 +65,7 @@ make_forecast <- function(tbbl){
 
 # read in the data--------------------------
 # change in industries so need to deal with that...............
-employment <- read_excel(here("data","current","Employment for 64 LMO Industries,2000-2022.xlsx"), skip = 2)%>%
+employment <- read_excel(here("data","current","Employment for 64 LMO Industries,2000-2022.xlsx"), skip = 2, sheet = "British Columbia")%>%
   pivot_longer(cols=-contains("Lmo"), names_to="year", values_to = "value")%>%
   rename(industry=contains("industry"),
          code=contains("code"))%>%
@@ -91,7 +91,7 @@ old_forecast <- read_excel(here("data","current","LMO_2022_industry_forecast_Mar
   unite(industry, code, industry, sep=": ")%>%
   mutate(year=as.numeric(year))
          
-driver_data <- read_excel(here("data","current","Driver-based forecast 2023 Feb 27.xlsx"))%>%
+driver_data <- read_excel(here("data","current","Driver-based forecast 2023 Mar 02.xlsx"))%>%
   select(-contains("code"))%>%
   rename(industry=`Ind Des`)%>%
   pivot_longer(cols=-industry, names_to = "year", values_to = "value")%>%
@@ -145,7 +145,7 @@ if (nrow(forecast_already > 0)) {
       `%` = `Percent Forecasted`,
       `Forecasts / Constraint` = scales::percent(total / employment, accuracy = .01)
     ) %>%
-    select(-total, -employment, -growth)
+    select(-total, -employment)
 } else {
   forecasted_by_year <- tibble(
     Year = forecast_years[1:5],
