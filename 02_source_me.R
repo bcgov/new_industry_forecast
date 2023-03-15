@@ -10,6 +10,7 @@ library(scales)
 library(aest)
 library(assertthat)
 library(ggpmisc)
+library(patchwork)
 library(ggpp)
 #constants------------
 historic_start <- 2010 #post recession
@@ -67,6 +68,34 @@ new_plot <- function(group, tbbl, old_cagr, new_cagr){
     labs(x="",y="Employment",colour="", title=group)
 }
 
+newer_plot <- function(group, tbbl, old_cagr, new_cagr){
+  colnames(old_cagr) <- c("Start","End", paste0(last_years_forecast,": CAGR"))
+  colnames(new_cagr) <- c("Start","End", paste0(this_years_forecast,": CAGR"))
+  plt <- ggplot()+
+    geom_line(data=tbbl, mapping=aes(year,value, colour=series))+
+    scale_y_continuous(labels=scales::comma)+
+    scale_colour_manual(values = bcPalette)+
+    labs(x="",y="Employment",colour="", title=group)+
+    theme_minimal(base_size = 15)
+  old_cagr <- ggplot() +
+    theme_void() +
+    annotate(geom = "table",
+             x = 1,
+             y = 1,
+             label = list(old_cagr))
+  new_cagr <- ggplot() +
+    theme_void() +
+    annotate(geom = "table",
+             x = 1,
+             y = 1,
+             label = list(new_cagr))
+  plt/(old_cagr+new_cagr)+
+    plot_layout(heights = c(3,1))
+}
+
+
+
+
 # read in the data--------------------------
 
 employment <- read_excel(here("data","current","Employment for 64 LMO Industries,2000-2022.xlsx"), skip = 2, sheet = "British Columbia")%>%
@@ -78,17 +107,16 @@ employment <- read_excel(here("data","current","Employment for 64 LMO Industries
   nest()%>%
   rename(employment=data)
 
-old_forecast <- read_excel(here("data","current","LMO_2022_industry_forecast_Mar04_For Stokes.xlsx"))%>%
-  select(-contains("CAGR"),-COMMENT)%>%
-  filter(str_detect(industry, "ind"))%>%
-  pivot_longer(cols=-industry, names_to = "year", values_to = "value")%>%
-  mutate(year=as.numeric(year),
-         industry=str_sub(industry, start=7))%>%
-  filter(year>2021)%>%
+old_forecast <- read_excel(here("data","current","LMO 2022E Employment by Industry BC.xlsx"), skip = 2)%>%
+  select(-contains("CAGR"), -NOC,-Description, -Variable, -`Geographic Area`)%>%
+  filter(Industry!="All industries")%>%
+  pivot_longer(cols=-Industry, names_to = "year", values_to = "value")%>%
+  mutate(year=as.numeric(year))%>%
+  clean_names()%>%
   group_by(industry)%>%
   nest()%>%
   rename(old_forecast=data)%>%
-  full_join(employment)%>%
+  right_join(employment)%>%
   select(-employment)%>%
   filter(!is.na(code))%>%
   unnest(old_forecast)%>%
@@ -102,7 +130,29 @@ employment <- employment%>%
 
 forecast_already <- read_csv(here("out","current", "forecasts.csv")) %>%
   group_by(industry, year) %>%
-  summarize(value = last(value)) # only the most recent forecast
+  summarize(value = last(value))# only the most recent forecast
+
+#deal with constraint
+constraint <- read_csv(here("data","current", "constraint.csv"))%>%
+  rename(constraint=employment)
+
+forecast_totals <- forecast_already%>%
+  group_by(year)%>%
+  summarise(forecast=sum(value))
+
+adjustment <- full_join(forecast_totals, constraint)%>%
+  mutate(forecast_over_constraint=forecast/constraint,
+         bend=forecast_over_constraint,
+         continue=forecast_over_constraint)%>%
+  fill(bend, .direction="down")
+
+unconstrained_years <- (max(constraint$year)+1):(max(constraint$year)+6)
+adjustment$continue[6:11] <- predict(lm(forecast_over_constraint~year, data=adjustment), newdata = tibble(year=unconstrained_years))
+
+forecast_with_adj <- adjustment%>%
+  select(year, bend, continue)%>%
+  full_join(forecast_already)
+
 
 # variables--------------------
 forecast_start <- min(forecast_already$year)
@@ -132,7 +182,7 @@ nested <- long%>%
   nest()%>%
   mutate(new_cagr = map(data, get_new_cagr),
          old_cagr = map(data, get_old_cagr),
-         plots = pmap(list(industry, data, old_cagr, new_cagr), new_plot)
+         plots = pmap(list(industry, data, old_cagr, new_cagr), newer_plot)
         )
 # create a new dataframe with the CAGRs of the new forecast-------
 new_cagr <- nested%>%

@@ -112,8 +112,6 @@ forecast_already <- read_csv(here("out","current", "forecasts.csv")) %>%
   group_by(industry, year) %>%
   summarize(value = last(value)) # only the most recent forecast
 
-#forecast_already <- read_csv(here("out","current", "adjusted.csv")) #test adjustment
-
 constraint <- read_csv(here("data","current", "constraint.csv"))
 
 # preliminary calculations-------------------
