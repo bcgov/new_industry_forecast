@@ -15,7 +15,6 @@ library(ggpp)
 #constants------------
 historic_start <- 2010 #post recession
 historic_end <- 2019 #pre covid
-bcPalette <- c("#1f4181", "#fabc29", "#000000")
 # functions-----------------
 read_pivot_clean <- function(pattern, skip) {
   read_excel(here("data","current", list.files(here("data","current"), pattern = pattern)), skip = skip) %>%
@@ -28,73 +27,80 @@ read_pivot_clean <- function(pattern, skip) {
     mutate(year = as.numeric(year)) %>%
     unite(industry, code, industry, sep = ": ")
 }
-cagr_percent <- function(df, start_year, end_year, thing){
-  assert_that(is.data.frame(df))
-  assert_that(end_year > start_year)
-  employment_start <- df%>%
-    filter(year == start_year & series == thing)%>%
-    pull(value)
-  employment_end <- df%>%
-    filter(year == end_year &  series == thing)%>%
-    pull(value)
-  cagr <- round(((employment_end/employment_start)^(1/(end_year-start_year))-1)*100, 2)
-  tibble(start_year, end_year, cagr)
-}
-get_old_cagr <- function(df){
-  bind_rows(cagr_percent(df, historic_start, historic_end, "Historical"),
-            cagr_percent(df, forecast_start-1, forecast_start+4, last_years_forecast),
-            cagr_percent(df, forecast_start+4, forecast_start+9, last_years_forecast),
-            cagr_percent(df, forecast_start-1, forecast_start+9, last_years_forecast))%>%
-    rename(cagr_last_year = cagr)
-}
-get_new_cagr <- function(df){
-  bind_rows(cagr_percent(df, historic_start, historic_end, "Historical"),
-            cagr_percent(df, forecast_start, forecast_start+5, this_years_forecast),
-            cagr_percent(df, forecast_start+5, forecast_start+10, this_years_forecast),
-            cagr_percent(df, forecast_start, forecast_start+10, this_years_forecast))%>%
-    rename(cagr_this_year = cagr)
+
+
+get3cagrs <- function(tbbl, series, offset){
+  bind_rows(first_five_years = get_cagr(tbbl, forecast_start-offset, forecast_start+5-offset, series),
+            second_five_years = get_cagr(tbbl, forecast_start+5-offset, forecast_start+10-offset, series),
+            ten_year = get_cagr(tbbl, forecast_start-offset, forecast_start+10-offset, series)
+  )
 }
 
-new_plot <- function(group, tbbl, old_cagr, new_cagr){
-  colnames(old_cagr) <- c("Start","End", paste0(last_years_forecast,": CAGR"))
-  colnames(new_cagr) <- c("Start","End", paste0(this_years_forecast,": CAGR"))
-  ggplot()+ #with geom_table_npc need to start with empty plot
-    geom_table_npc(mapping = aes(npcx = c(.05,.95), #add the tables
-                                 npcy = c(.05,.05),
-                                 label = list(old_cagr, new_cagr)))+
-    geom_line(data=tbbl, mapping=aes(year,value, colour=series), linewidth=2, alpha=.5)+
-    scale_y_continuous(labels=scales::comma)+
-    scale_colour_manual(values = bcPalette)+
-    labs(x="",y="Employment",colour="", title=group)
+get_cagr <- function(tbbl, start, end, series){
+  start_val <- tbbl$value[tbbl$series==series & tbbl$year==start]
+  end_val <- tbbl$value[tbbl$series==series & tbbl$year==end]
+  cagr <- scales::percent((end_val/start_val)^(1/(end-start))-1, accuracy = .01)
+  tibble(start=start, end=end, cagr=cagr)
 }
-
-newer_plot <- function(group, tbbl, old_cagr, new_cagr){
-  colnames(old_cagr) <- c("Start","End", paste0(last_years_forecast,": CAGR"))
-  colnames(new_cagr) <- c("Start","End", paste0(this_years_forecast,": CAGR"))
-  plt <- ggplot()+
+make_plot <- function(tbbl, industry, old, last, raw, bend, continue){
+  if(nrow(last)==0){
+    last <- ggplot()+
+      theme_void() +
+      labs(title="No forecast last year")
+  }else{
+    last <- ggplot() +
+      theme_void() +
+      annotate(geom = "table",
+               x = 1,
+               y = 1,
+               label = list(last))+
+      labs(title="last year")
+  }
+ plt <- ggplot()+
     geom_line(data=tbbl, mapping=aes(year,value, colour=series))+
     scale_y_continuous(labels=scales::comma)+
-    scale_colour_manual(values = bcPalette)+
-    labs(x="",y="Employment",colour="", title=group)+
+    labs(x="",y="Employment",colour="", title=industry)+
     theme_minimal(base_size = 15)
-  old_cagr <- ggplot() +
+  old <- ggplot() +
     theme_void() +
     annotate(geom = "table",
              x = 1,
              y = 1,
-             label = list(old_cagr))
-  new_cagr <- ggplot() +
+             label = list(old))+
+    labs(title="historical")
+  raw <- ggplot() +
     theme_void() +
     annotate(geom = "table",
              x = 1,
              y = 1,
-             label = list(new_cagr))
-  plt/(old_cagr+new_cagr)+
-    plot_layout(heights = c(3,1))
+             label = list(raw))+
+    labs(title="raw")
+  bend <- ggplot() +
+    theme_void() +
+    annotate(geom = "table",
+             x = 1,
+             y = 1,
+             label = list(bend))+
+    labs(title="bend")
+  continue <- ggplot() +
+    theme_void() +
+    annotate(geom = "table",
+             x = 1,
+             y = 1,
+             label = list(continue))+
+    labs(title="continue")
+  plt/(old+last+raw+bend+continue)+
+    plot_layout(heights = c(2,1))
 }
 
-
-
+unnest_cagrs <- function(tbbl, nest, series){
+  tbbl%>%
+    unnest({{  nest  }})%>%
+    select(industry, start, end, cagr)%>%
+    mutate(series=series)%>%
+    unite(period, start, end, sep = "-")%>%
+    pivot_wider(names_from = period, values_from = cagr, names_prefix = "CAGR: ")
+}
 
 # read in the data--------------------------
 
@@ -144,8 +150,9 @@ adjustment <- full_join(forecast_totals, constraint)%>%
   mutate(forecast_over_constraint=forecast/constraint,
          bend=forecast_over_constraint,
          continue=forecast_over_constraint)%>%
-  fill(bend, .direction="down")
+  fill(bend, .direction="down")#the bend method continues scaling at the same rate as the last value of forecast/constraint
 
+#the continue adjustment follows the trend in the forecast/constraint beyond its last value
 unconstrained_years <- (max(constraint$year)+1):(max(constraint$year)+6)
 adjustment$continue[6:11] <- predict(lm(forecast_over_constraint~year, data=adjustment), newdata = tibble(year=unconstrained_years))
 
@@ -157,7 +164,6 @@ forecast_with_adj <- adjustment%>%
 # variables--------------------
 forecast_start <- min(forecast_already$year)
 last_years_forecast <- paste("Forecast", forecast_start-1)
-this_years_forecast <- paste("Forecast", forecast_start)
 col_names_last_year <- c("Start Year", "End Year", "CAGR", paste0("LMO ", forecast_start-1))
 col_names_this_year <- c(paste0("LMO ", forecast_start), "CAGR", "Start Year", "End Year")
 
@@ -165,56 +171,65 @@ col_names_this_year <- c(paste0("LMO ", forecast_start), "CAGR", "Start Year", "
 lmo_observed <- employment%>%
   mutate(series = "Historical")
 lmo_old_forecast <- old_forecast%>%
-  mutate(series = last_years_forecast)
-lmo_new_forecast <- forecast_already%>%
-  mutate(series = this_years_forecast)
+  mutate(series = paste("Final forecast", forecast_start-1, sep=": "))
+
+lmo_raw_forecast <- forecast_already%>%
+  mutate(series = paste("Raw Forecast",forecast_start, sep=": "))
+
+lmo_bend <- forecast_with_adj%>%
+  mutate(value=value/bend)%>%
+  select(industry,year,value)%>%
+  mutate(series=paste("Bend adjustment",forecast_start, sep = ": "))
+
+lmo_continue <- forecast_with_adj%>%
+  mutate(value=value/continue)%>%
+  select(industry,year,value)%>%
+  mutate(series=paste("Continue adjustment",forecast_start, sep = ": "))
 
 # row bind the long format dataframes-----
-long <- bind_rows(lmo_observed, lmo_old_forecast, lmo_new_forecast)%>%
-  mutate(value = round(value))
+long <- bind_rows(lmo_observed, lmo_old_forecast, lmo_raw_forecast,lmo_bend, lmo_continue)%>%
+  mutate(value = round(value))%>%
+  mutate(series=fct_relevel(series,
+                            "Historical",
+                            paste("Final forecast", forecast_start-1, sep=": "),
+                            paste("Raw Forecast",forecast_start, sep=": "),
+                            paste("Bend adjustment",forecast_start, sep = ": "),
+                            paste("Continue adjustment",forecast_start, sep = ": ")
+                            )
+         )
 # convert it to wide format-------
 wide <- long%>%
+  filter(year>2009)%>%
   pivot_wider(id_cols = c(industry, series), names_from = year, values_from = value)%>%
   arrange(industry, series)
 #nest the long format dataframe by industry------
 nested <- long%>%
   group_by(industry)%>%
   nest()%>%
-  mutate(new_cagr = map(data, get_new_cagr),
-         old_cagr = map(data, get_old_cagr),
-         plots = pmap(list(industry, data, old_cagr, new_cagr), newer_plot)
-        )
-# create a new dataframe with the CAGRs of the new forecast-------
-new_cagr <- nested%>%
-  unnest(new_cagr)%>%
-  filter(start_year != historic_start)%>%
-  select(industry, start_year, end_year, cagr_this_year)%>%
-  mutate(series = this_years_forecast,
-         period = case_when(start_year == forecast_start & end_year == forecast_start+5 ~ "1st 5 year CAGR",
-                          start_year == forecast_start+5 & end_year == forecast_start+10 ~ "2nd 5 year CAGR",
-                          start_year == forecast_start & end_year == forecast_start+10 ~ "10 year CAGR",
-                          ))%>%
-  select(industry, series, period, cagr_this_year)%>%
-  pivot_wider(id_cols = c(industry, series), names_from = period, values_from = cagr_this_year)
-# create a wide format dataframe with the CAGRs of the old forecast-------
-old_cagr <- nested%>%
-  unnest(old_cagr)%>%
-  filter(start_year != historic_start)%>%
-  select(industry, start_year, end_year, cagr_last_year)%>%
-  mutate(series = last_years_forecast,
-         period = case_when(start_year == forecast_start-1 & end_year == forecast_start+4 ~ "1st 5 year CAGR",
-                          start_year == forecast_start+4 & end_year == forecast_start+9 ~ "2nd 5 year CAGR",
-                          start_year == forecast_start-1 & end_year == forecast_start+9 ~ "10 year CAGR",
-         ))%>%
-  select(industry, series, period, cagr_last_year)%>%
-  pivot_wider(id_cols = c(industry, series), names_from = period, values_from = cagr_last_year)
-#join the wide format original dataframe with the wide format CAGRs (note that the CAGRs get their own columns so fix)----
-wide <- full_join(wide, new_cagr, by = c("industry", "series"))
-wide <- full_join(wide, old_cagr, by = c("industry", "series"))%>%
-  mutate(`1st 5 year CAGR` = ifelse(is.na(`1st 5 year CAGR.x`), `1st 5 year CAGR.y`, `1st 5 year CAGR.x`),
-         `2nd 5 year CAGR` = ifelse(is.na(`2nd 5 year CAGR.x`), `2nd 5 year CAGR.y`, `2nd 5 year CAGR.x`),
-         `10 year CAGR` = ifelse(is.na(`10 year CAGR.x`), `10 year CAGR.y`, `10 year CAGR.x`))%>%
-  select(-ends_with(".x"), -ends_with(".y"))
+  mutate(historical_cagr=map(data, get_cagr, historic_start, historic_end, "Historical"),
+         last_years_cagrs=map(data, get3cagrs, paste("Final forecast", forecast_start-1, sep=": "), offset=1),
+         raw_cagrs=map(data, get3cagrs, paste("Raw Forecast", forecast_start, sep=": "), offset=0),
+         bend_cagrs=map(data, get3cagrs, paste("Bend adjustment",forecast_start, sep = ": "), offset=0),
+         continue_cagrs=map(data, get3cagrs, paste("Continue adjustment",forecast_start, sep = ": "), offset=0),
+         plots=pmap(list(data, industry, historical_cagr, last_years_cagrs, raw_cagrs, bend_cagrs, continue_cagrs), make_plot)
+         )
+
+historical_cagr <- nested%>%
+  unnest(historical_cagr)%>%
+  select(industry, "CAGR: {historic_start}-{historic_end}":=cagr)%>%
+  mutate(series="Historical")
+last_years_cagrs <- unnest_cagrs(nested, last_years_cagrs, paste("Final forecast", forecast_start-1, sep=": "))
+raw_cagrs <- unnest_cagrs(nested, raw_cagrs, paste("Raw Forecast", forecast_start, sep=": "))
+bend_cagrs <- unnest_cagrs(nested, bend_cagrs, paste("Bend adjustment",forecast_start, sep = ": "))
+continue_cagrs <- unnest_cagrs(nested, continue_cagrs, paste("Continue adjustment",forecast_start, sep = ": "))
+current_cagrs <- bind_rows(raw_cagrs, bend_cagrs, continue_cagrs)
+
+all_the_data <- wide%>%
+  full_join(historical_cagr)%>%
+  full_join(last_years_cagrs)%>%
+  full_join(current_cagrs)
+
+
 # Create the pdf (plot) output--------
 pdf(here("out","current", paste0("LMO_", forecast_start, "_industry_forecast.pdf")), onefile = TRUE, height=8.5, width=11)
 nested%>%
@@ -222,4 +237,4 @@ nested%>%
   walk(print)
 dev.off()
 # write the wide format data to disk--------
-write_csv(wide, here("out","current", paste0("LMO_", forecast_start, "_industry_forecast.csv")), na ="")
+write_csv(all_the_data, here("out","current", paste0("LMO_", forecast_start, "_industry_forecast.csv")), na ="")
