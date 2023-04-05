@@ -6,13 +6,12 @@ output:
     vertical_layout: fill
 runtime: shiny   
 ---
+
 ```{css, echo=FALSE}
 .dataTables_scrollBody {
   max-height: none !important;
 }
 ```
-
-
 
 ```{r setup, include=FALSE}
 # libraries---------------------
@@ -154,10 +153,14 @@ if (nrow(forecast_already > 0)) {
     `Forecasts / Constraint` = rep(0, 5)
   )
 }
+#get notes from last year-----------------
+
+notes <- read_excel(here("data","current","2024_industry_forecast_notes.xlsx"))%>%
+  unite(industry, contains("code"), contains("industry"), sep=": ")%>%
+  mutate(notes=str_replace_all(notes, "-"," "))
 ```
 
-Inputs {.sidebar}
--------------------------------------
+## Inputs {.sidebar}
 
 ```{r}
 actionButton("reset", "Reset to clear adjustments")
@@ -308,10 +311,15 @@ observeEvent(input$save, {
     col.names = !file.exists(here("out","current", "forecasts.csv"))
   )
 })
+reactive_notes <- reactive({
+  notes %>%
+    filter(industry == input$industry)%>%
+    pull(notes)
+})
+
 ```
- 
-Row {data-height=700}
--------------------------------------
+
+## Row {data-height=700} {.tabset}
 
 ### `r reactive({paste0(input$industry, " (CAGR ", paste(reactive_employment_cagr(),collapse=" "), ")")})`
 
@@ -331,8 +339,15 @@ renderPlot({
 })
 ```
 
-Row {data-height=300}
--------------------------------------
+### Notes from last year
+
+```{r}
+renderUI({
+  reactive_notes()
+})
+```
+
+## Row {data-height="300"}
 
 ### Last year's forecast
 
