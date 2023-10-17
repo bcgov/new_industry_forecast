@@ -270,7 +270,9 @@ reactive_new <- reactive({
     input$adjust_tenth,
     input$adjust_eleventh
   )
-  adjustments <- tibble(year = forecast_years, slope = input$slope^(forecast_years - min(forecast_years)), adjustment_vector = adjustment_vector)
+  adjustments <- tibble(year = forecast_years, 
+                        slope = input$slope^(forecast_years - min(forecast_years)), 
+                        adjustment_vector = adjustment_vector)
   reactive_old() %>%
     mutate(year = year + 1) %>%
     mutate(value = value * input$shift) %>%
