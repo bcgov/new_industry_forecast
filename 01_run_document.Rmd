@@ -26,7 +26,7 @@ library(shinyalert)
 # constants-----------------------------
 historic_start <- 2010
 historic_end <- 2019
-colors <- c("Employment" = "black", "Last Year" = "purple", "Candidate" = "orange", "Driver Data" = "blue", "Forecast Already" = "red")
+colors <- c("Employment" = "black", "Last Year" = "purple", "New Forecast" = "orange", "Driver Data" = "blue", "Forecast Already" = "red", "Proportion Forecast"="aquamarine")
 
 # if forecast table doesn't exist create it.--------------------
 if (!file.exists(here("out","current", "forecasts.csv"))) {
@@ -74,7 +74,7 @@ employment <- read_excel(here("data","current","Employment for 64 LMO Industries
   rename(employment=data)
 
 old_forecast <- read_excel(here("data","current","LMO 2022E Employment by Industry BC.xlsx"), skip = 2)%>%
-  select(-contains("CAGR"), -NOC,-Description, -Variable, -`Geographic Area`)%>%
+  select(-contains("CAGR"), -NOC, -Description, -Variable, -`Geographic Area`)%>%
   filter(Industry!="All industries")%>%
   pivot_longer(cols=-Industry, names_to = "year", values_to = "value")%>%
   mutate(year=as.numeric(year))%>%
@@ -102,6 +102,14 @@ driver_data <- read_excel(here("data","current","Driver-based forecast 2023 Mar 
   unite(industry, code, industry, sep=": ")%>%
   mutate(year=as.numeric(year))
 
+prop_fcast <- read_csv(here("data", "current","prop_forecast.csv"))|>
+  filter(year>=min(driver_data$year))|>
+  separate(industry, c("wrong_code", "industry"), sep=": ")|>
+  left_join(employment)|>
+  unite(industry, code, industry, sep=": ")%>%
+  mutate(year=as.numeric(year))|>
+  select(industry, year, value)
+ 
 employment <- employment%>%
   unnest(employment)%>%
   unite(industry, code, industry, sep=": ")%>%
@@ -170,6 +178,14 @@ selectInput(
   industries,
   selected = default_industry
 )
+
+selectInput(
+  "fcast",
+  "Select a forecast to modify",
+  c("Last Year","Driver","Proportion"),
+  selected = "Last Year"
+)
+
 sliderInput("shift", "Shift up or down",
   min = .8, max = 1.2,
   value = 1, step = .01
@@ -229,6 +245,14 @@ observeEvent(input$reset, {
   updateSliderInput(inputId = "adjust_eleventh", value = 1)
 })
 # reactive elements------------------------
+reactive_prop <- reactive({
+  prop_fcast %>%
+    filter(industry == input$industry)
+})
+reactive_driver <- reactive({
+  driver_data %>%
+    filter(industry == input$industry)
+})
 reactive_employment <- reactive({
   employment %>%
     filter(industry == input$industry)
@@ -273,7 +297,7 @@ reactive_new <- reactive({
   adjustments <- tibble(year = forecast_years, 
                         slope = input$slope^(forecast_years - min(forecast_years)), 
                         adjustment_vector = adjustment_vector)
-  reactive_old() %>%
+  case_when(input$fcast=="Last Year" ~ reactive_old() %>%
     mutate(year = year + 1) %>%
     mutate(value = value * input$shift) %>%
     full_join(adjustments) %>%
@@ -281,7 +305,24 @@ reactive_new <- reactive({
       value = value * slope,
       value = round(value * adjustment_vector)
     ) %>%
+    select(-slope, -adjustment_vector),
+  input$fcast=="Driver" ~ reactive_driver()%>%
+    mutate(value = value * input$shift) %>%
+    full_join(adjustments) %>%
+    mutate(
+      value = value * slope,
+      value = round(value * adjustment_vector)
+    ) %>%
+    select(-slope, -adjustment_vector),
+  input$fcast=="Proportion"~ reactive_prop()%>%
+    mutate(value = value * input$shift) %>%
+    full_join(adjustments) %>%
+    mutate(
+      value = value * slope,
+      value = round(value * adjustment_vector)
+    ) %>%
     select(-slope, -adjustment_vector)
+  )
 })
 
 reactive_new_cagr <- reactive({
@@ -295,10 +336,7 @@ reactive_new_cagr <- reactive({
     select(CAGR, Start, End)
 })
 
-reactive_driver <- reactive({
-  driver_data %>%
-    filter(industry == input$industry)
-})
+
 reactive_already <- reactive({
   forecast_already %>%
     filter(industry == input$industry)
@@ -329,9 +367,10 @@ reactive_notes <- reactive({
 renderPlot({
   ggplot() +
     geom_line(data = reactive_employment(), mapping = aes(year, value, colour = "Employment"), lwd = 2) +
+    geom_line(data = reactive_driver(), mapping = aes(year, value, colour = "Driver Data"), lwd = 3) +
+    geom_line(data = reactive_prop(), mapping = aes(year, value, colour = "Proportion Forecast"), lwd = 3) +
     geom_line(data = reactive_old(), mapping = aes(year, value, colour = "Last Year"), lwd = 2) +
-    geom_line(data = reactive_new(), mapping = aes(year, value, colour = "Candidate"), lwd = 2) +
-    geom_line(data = reactive_driver(), mapping = aes(year, value, colour = "Driver Data"), lwd = 2) +
+    geom_line(data = reactive_new(), mapping = aes(year, value, colour = "New Forecast"), lwd = 2) +
     geom_line(data = reactive_already(), mapping = aes(year, value, colour = "Forecast Already"), lwd = 2) +
     scale_color_manual(values = colors) +
     scale_y_continuous(labels = scales::comma) +
@@ -362,7 +401,7 @@ renderDT({
 })
 ```
 
-### Candidate forecast
+### `r renderUI({paste("New forecast based on",input$fcast)})`
 
 ```{r}
 renderDT({
