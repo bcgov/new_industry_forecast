@@ -64,7 +64,7 @@ make_forecast <- function(tbbl){
 
 # read in the data--------------------------
 # change in industries so need to deal with that...............
-employment <- read_excel(here("data","current","Employment for 64 LMO Industries,2000-2022.xlsx"), skip = 2, sheet = "British Columbia")%>%
+employment <- read_excel(here("data","current","Employment for 64 LMO Industries 2000-2023.xlsx"), skip = 2, sheet = "British Columbia")%>%
   pivot_longer(cols=-contains("Lmo"), names_to="year", values_to = "value")%>%
   rename(industry=contains("industry"),
          code=contains("code"))%>%
@@ -73,22 +73,29 @@ employment <- read_excel(here("data","current","Employment for 64 LMO Industries
   nest()%>%
   rename(employment=data)
 
-old_forecast <- read_excel(here("data","current","LMO 2022E Employment by Industry BC.xlsx"), skip = 2)%>%
-  select(-contains("CAGR"), -NOC, -Description, -Variable, -`Geographic Area`)%>%
-  filter(Industry!="All industries")%>%
-  pivot_longer(cols=-Industry, names_to = "year", values_to = "value")%>%
+old_forecast <- vroom::vroom(here("data","current","LMO_2023_employment.csv"), skip = 3)|>
+  janitor::remove_constant()|>
+  filter(NOC=="#T",
+         Industry!="All industries",
+         `Geographic Area`=="British Columbia")|>
+  select(-NOC,-Description,-Variable, -`Geographic Area`)|>
+  pivot_longer(cols=-Industry, names_to = "year")%>%
   mutate(year=as.numeric(year))%>%
   clean_names()%>%
   group_by(industry)%>%
   nest()%>%
   rename(old_forecast=data)%>%
-  right_join(employment)%>%
+  right_join(employment)%>% #to get correct industry codes
   select(-employment)%>%
   filter(!is.na(code))%>%
   unnest(old_forecast)%>%
   unite(industry, code, industry, sep=": ")%>%
   mutate(year=as.numeric(year))
-         
+ 
+forecast_years <- old_forecast %>% # the years to be forecast
+  distinct(year) %>%
+  pull(year) + 1
+
 driver_data <- read_excel(here("data","current","Driver-based forecast 2023 Mar 02.xlsx"))%>%
   select(-contains("code"))%>%
   rename(industry=`Ind Des`)%>%
@@ -100,7 +107,7 @@ driver_data <- read_excel(here("data","current","Driver-based forecast 2023 Mar 
   select(-employment)%>%
   unnest(driver_data)%>%
   unite(industry, code, industry, sep=": ")%>%
-  mutate(year=as.numeric(year))
+  mutate(year=as.numeric(year)+1) #remove the +1 once we get current driver data
 
 prop_fcast <- read_csv(here("data", "current","prop_forecast.csv"))|>
   filter(year>=min(driver_data$year))|>
@@ -119,15 +126,13 @@ forecast_already <- read_csv(here("out","current", "forecasts.csv")) %>%
   group_by(industry, year) %>%
   summarize(value = last(value)) # only the most recent forecast
 
-constraint <- read_csv(here("data","current", "constraint.csv"))
+constraint <- read_csv(here("data","current", "constraint.csv"))|>
+  filter(year %in% forecast_years[1:5])|>
+  select(year, employment)
 
 # preliminary calculations-------------------
 industries <- unique(employment$industry) # for the drop down list.
 default_industry <- industries[!industries %in% unique(forecast_already$industry)][1] #make the default choice the next industry.
-
-forecast_years <- old_forecast %>% # the years to be forecast
-  distinct(year) %>%
-  pull(year) + 1
 industry_share_last_year <- employment %>% # for keeping track of how much has been forecast relative to constraint.
   filter(year == max(year), industry != "ind00-ALL") %>%
   mutate(
