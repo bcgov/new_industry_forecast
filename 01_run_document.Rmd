@@ -14,6 +14,14 @@ runtime: shiny
 ```
 
 ```{r setup, include=FALSE}
+#' The main challenge here is that data is being drawn in from multiple sources where
+#' it is not certain that industry names and codes are consistent between sources... so we use 
+#' fuzzyjoins, which necessitates manually verifying that the joins were done correctly.  The
+#' file prepared for Stokes is viewed to be the "correct" naming and numbering,
+#' and then we impose this naming on last year's forecasts and the driver data to ensure consistency.
+#' 
+#' TO DO: remove the +1 on line 121 (once current driver data available)
+
 # libraries---------------------
 library(flexdashboard)
 library(tidyverse)
@@ -23,6 +31,7 @@ library(janitor)
 library(DT)
 library(markdown)
 library(shinyalert)
+library(fuzzyjoin)
 # constants-----------------------------
 historic_start <- 2010
 historic_end <- 2019
@@ -63,8 +72,10 @@ make_forecast <- function(tbbl){
 }
 
 # read in the data--------------------------
-# change in industries so need to deal with that...............
-employment <- read_excel(here("data","current","Employment for 64 LMO Industries 2000-2023.xlsx"), skip = 2, sheet = "British Columbia")%>%
+# this file is treated as having THE correct industry names and codes.
+employment <- read_excel(here("data","current","Employment for 64 LMO Industries 2000-2023.xlsx"), 
+                         skip = 2, 
+                         sheet = "British Columbia")%>%
   pivot_longer(cols=-contains("Lmo"), names_to="year", values_to = "value")%>%
   rename(industry=contains("industry"),
          code=contains("code"))%>%
@@ -73,20 +84,11 @@ employment <- read_excel(here("data","current","Employment for 64 LMO Industries
   nest()%>%
   rename(employment=data)
 
-old_forecast <- vroom::vroom(here("data","current","LMO_2023_employment.csv"), skip = 3)|>
-  janitor::remove_constant()|>
-  filter(NOC=="#T",
-         Industry!="All industries",
-         `Geographic Area`=="British Columbia")|>
-  select(-NOC,-Description,-Variable, -`Geographic Area`)|>
-  pivot_longer(cols=-Industry, names_to = "year")%>%
-  mutate(year=as.numeric(year))%>%
-  clean_names()%>%
-  group_by(industry)%>%
-  nest()%>%
-  rename(old_forecast=data)%>%
-  right_join(employment)%>% #to get correct industry codes
-  select(-employment)%>%
+old_forecast <- read_rds(here("data","current","old_forecast.rds"))%>%
+  stringdist_right_join(employment)%>% #stoke f'd up industry names: manually check the fuzzy join
+  ungroup()|>
+  select(-employment, -industry.x)%>%
+  rename(industry=industry.y)%>%
   filter(!is.na(code))%>%
   unnest(old_forecast)%>%
   unite(industry, code, industry, sep=": ")%>%
@@ -103,16 +105,21 @@ driver_data <- read_excel(here("data","current","Driver-based forecast 2023 Mar 
   group_by(industry)%>%
   nest()%>%
   rename(driver_data=data)%>%
-  left_join(employment)%>%
-  select(-employment)%>%
+  stringdist_right_join(employment)%>% #don't trust industry names: should manually check the fuzzy join
+  ungroup()|>
+  select(-employment, -industry.x)%>%
+  rename(industry=industry.y)%>%
   unnest(driver_data)%>%
   unite(industry, code, industry, sep=": ")%>%
   mutate(year=as.numeric(year)+1) #remove the +1 once we get current driver data
 
 prop_fcast <- read_csv(here("data", "current","prop_forecast.csv"))|>
   filter(year>=min(driver_data$year))|>
-  separate(industry, c("wrong_code", "industry"), sep=": ")|>
-  left_join(employment)|>
+  separate(industry, c("wrong_code", "industry"), sep=": ")%>%
+  stringdist_right_join(employment)%>% #don't trust industry names: manually check the join
+  ungroup()|>
+  select(-employment, -industry.x)%>%
+  rename(industry=industry.y)%>%
   unite(industry, code, industry, sep=": ")%>%
   mutate(year=as.numeric(year))|>
   select(industry, year, value)
@@ -340,7 +347,6 @@ reactive_new_cagr <- reactive({
     as_tibble() %>%
     select(CAGR, Start, End)
 })
-
 
 reactive_already <- reactive({
   forecast_already %>%
