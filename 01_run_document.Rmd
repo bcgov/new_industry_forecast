@@ -65,7 +65,7 @@ make_forecast <- function(tbbl){
   end_val <- filter(tbbl, year == historic_end) %>%
     pull(value)
   historic_cagr <- (end_val / start_val)^(1 / (historic_end - historic_start))
-  multiply_last_value_by <- historic_cagr^(0:10)
+  multiply_last_value_by <- historic_cagr^(1:11)
   year <- max(tbbl$year):(max(tbbl$year)+10)
   value <- last_value*multiply_last_value_by
   tibble(industry=input$industry, year=year, value=value)
@@ -172,7 +172,7 @@ if (nrow(forecast_already > 0)) {
     `#` = rep(0, 5),
     `%` = rep(0, 5),
     `Forecasts / Constraint` = rep(0, 5),
-    too = rep(NA_character_, 5)
+    too = rep("early", 5)
   )
 }
 #get notes from last year-----------------
