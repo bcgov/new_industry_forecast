@@ -39,7 +39,7 @@ colors <- c("Employment" = "black", "Last Year" = "purple", "New Forecast" = "or
 
 # if forecast table doesn't exist create it.--------------------
 if (!file.exists(here("out","current", "forecasts.csv"))) {
-  tibble(industry = character(), year = numeric(), value = numeric()) %>%
+  tibble(year= numeric(), value=numeric(), industry = character()) %>%
     write_csv(here("out","current", "forecasts.csv"))
 }
 
@@ -98,7 +98,7 @@ forecast_years <- old_forecast %>% # the years to be forecast
   distinct(year) %>%
   pull(year) + 1
 
-driver_data <- read_excel(here("data","current","Driver-based forecast 2023 Mar 02.xlsx"))%>%
+driver_data <- read_csv(here("data","current","driver_data_2024.csv"))%>%
   select(-contains("code"))%>%
   rename(industry=`Ind Des`)%>%
   pivot_longer(cols=-industry, names_to = "year", values_to = "value")%>%
@@ -111,7 +111,7 @@ driver_data <- read_excel(here("data","current","Driver-based forecast 2023 Mar 
   rename(industry=industry.y)%>%
   unnest(driver_data)%>%
   unite(industry, code, industry, sep=": ")%>%
-  mutate(year=as.numeric(year)+1) #remove the +1 once we get current driver data
+  mutate(year=as.numeric(year)) 
 
 prop_fcast <- read_csv(here("data", "current","prop_forecast.csv"))|>
   filter(year>=min(driver_data$year))|>
@@ -162,7 +162,8 @@ if (nrow(forecast_already > 0)) {
     mutate(
       `#` = nrow(forecasted_industries),
       `%` = `Percent Forecasted`,
-      `Forecasts / Constraint` = scales::percent(total / employment, accuracy = .01)
+      `Forecasts / Constraint` = scales::percent(total / employment, accuracy = .01),
+      too=if_else(`Forecasts / Constraint`>`%`,"high","low")
     ) %>%
     select(-total, -employment)
 } else {
@@ -170,7 +171,8 @@ if (nrow(forecast_already > 0)) {
     Year = forecast_years[1:5],
     `#` = rep(0, 5),
     `%` = rep(0, 5),
-    `Forecasts / Constraint` = rep(0, 5)
+    `Forecasts / Constraint` = rep(0, 5),
+    too = rep(NA_character_, 5)
   )
 }
 #get notes from last year-----------------
