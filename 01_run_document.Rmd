@@ -35,7 +35,7 @@ library(fuzzyjoin)
 # constants-----------------------------
 historic_start <- 2010
 historic_end <- 2019
-colors <- c("Employment" = "black", "Last Year" = "purple", "New Forecast" = "orange", "Driver Data" = "blue", "Forecast Already" = "red", "Proportion Forecast"="aquamarine")
+colors <- c("Employment" = "black", "Last Year" = "purple", "New Forecast" = "orange", "Driver Data" = "blue", "Forecast Already" = "red", "CAGR Forecast"="aquamarine")
 
 # if forecast table doesn't exist create it.--------------------
 if (!file.exists(here("out","current", "forecasts.csv"))) {
@@ -51,10 +51,8 @@ get_cagr <- function(tbbl, start_year, end_year) {
     pull(value)
   c(start_year, end_year, scales::percent((end_val / start_val)^(1 / (end_year - start_year)) - 1, accuracy = .1))
 }
-# make fake forecasts for industries not forecast last year, where the fake forecast starts with 
-# last observed level of employment, and then grows at the 2010-2019 CAGR.
+# make forecast, where the forecast grows at the 2010-2019 CAGR.
 make_forecast <- function(tbbl){
-  shinyalert("This is a new industry. Last year's forecast is fake")
   tbbl <- tbbl%>%
     mutate(year=as.numeric(year))
   last_value <- tbbl%>%
@@ -66,7 +64,7 @@ make_forecast <- function(tbbl){
     pull(value)
   historic_cagr <- (end_val / start_val)^(1 / (historic_end - historic_start))
   multiply_last_value_by <- historic_cagr^(1:11)
-  year <- max(tbbl$year):(max(tbbl$year)+10)
+  year <- (max(tbbl$year)+1):(max(tbbl$year)+11)
   value <- last_value*multiply_last_value_by
   tibble(industry=input$industry, year=year, value=value)
 }
@@ -113,17 +111,6 @@ driver_data <- read_csv(here("data","current","driver_data_2024.csv"))%>%
   unite(industry, code, industry, sep=": ")%>%
   mutate(year=as.numeric(year)) 
 
-prop_fcast <- read_csv(here("data", "current","prop_forecast.csv"))|>
-  filter(year>=min(driver_data$year))|>
-  separate(industry, c("wrong_code", "industry"), sep=": ")%>%
-  stringdist_right_join(employment)%>% #don't trust industry names: manually check the join
-  ungroup()|>
-  select(-employment, -industry.x)%>%
-  rename(industry=industry.y)%>%
-  unite(industry, code, industry, sep=": ")%>%
-  mutate(year=as.numeric(year))|>
-  select(industry, year, value)
- 
 employment <- employment%>%
   unnest(employment)%>%
   unite(industry, code, industry, sep=": ")%>%
@@ -196,7 +183,7 @@ selectInput(
 selectInput(
   "fcast",
   "Select a forecast to modify",
-  c("Last Year","Driver","Proportion"),
+  c("Last Year","Driver","CAGR Forecast"),
   selected = "Last Year"
 )
 
@@ -274,15 +261,14 @@ reactive_employment <- reactive({
 reactive_employment_cagr <- reactive({
   get_cagr(reactive_employment(), historic_start, historic_end)
 })
-#create a fake forecast for industries that were not forecast last year.----------------------
+
 reactive_old <- reactive({
-  temp <- old_forecast %>%
+  old_forecast %>%
     filter(industry == input$industry)
-  if(nrow(temp)>0){
-    temp
-  }else{
-    make_forecast(reactive_employment())
-  }
+})
+
+reactive_CAGR_forecast <- reactive({
+  make_forecast(reactive_employment())
 })
 
 reactive_old_cagr <- reactive({
@@ -328,7 +314,7 @@ reactive_new <- reactive({
       value = round(value * adjustment_vector)
     ) %>%
     select(-slope, -adjustment_vector),
-  input$fcast=="Proportion"~ reactive_prop()%>%
+  input$fcast=="CAGR Forecast"~ reactive_CAGR_forecast()%>%
     mutate(value = value * input$shift) %>%
     full_join(adjustments) %>%
     mutate(
@@ -378,15 +364,16 @@ reactive_notes <- reactive({
 
 ```{r, fig.retina=2}
 renderPlot({
-  ggplot() +
-    geom_line(data = reactive_employment(), mapping = aes(year, value, colour = "Employment"), lwd = 2) +
-    geom_line(data = reactive_driver(), mapping = aes(year, value, colour = "Driver Data"), lwd = 3) +
-    geom_line(data = reactive_prop(), mapping = aes(year, value, colour = "Proportion Forecast"), lwd = 3) +
-    geom_line(data = reactive_old(), mapping = aes(year, value, colour = "Last Year"), lwd = 2) +
-    geom_line(data = reactive_new(), mapping = aes(year, value, colour = "New Forecast"), lwd = 2) +
-    geom_line(data = reactive_already(), mapping = aes(year, value, colour = "Forecast Already"), lwd = 2) +
+  ggplot(mapping=aes(year,value)) +
+    geom_line(data = reactive_employment(), mapping = aes(colour = "Employment"), lwd = 2) +
+    geom_line(data = reactive_driver(), mapping = aes(colour = "Driver Data"), lwd = 3) +
+    geom_line(data = reactive_CAGR_forecast(), mapping = aes(colour = "CAGR Forecast"), lwd = 3) +
+    geom_line(data = reactive_old(), mapping = aes(colour = "Last Year"), lwd = 2) +
+    geom_line(data = reactive_new(), mapping = aes(colour = "New Forecast"), lwd = 2) +
+    geom_line(data = reactive_already(), mapping = aes(colour = "Forecast Already"), lwd = 2) +
     scale_color_manual(values = colors) +
     scale_y_continuous(labels = scales::comma) +
+    scale_x_continuous(breaks = seq(min(reactive_employment()$year),max(reactive_new()$year),2))+
     labs(x = "", y = "", color = "") +
     theme(legend.position = "bottom") +
     theme(text = element_text(size = 20))
