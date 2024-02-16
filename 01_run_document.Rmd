@@ -363,20 +363,30 @@ reactive_notes <- reactive({
 ### `r reactive({paste0(input$industry, " (CAGR ", paste(reactive_employment_cagr(),collapse=" "), ")")})`
 
 ```{r, fig.retina=2}
-renderPlot({
-  ggplot(mapping=aes(year,value)) +
-    geom_line(data = reactive_employment(), mapping = aes(colour = "Employment"), lwd = 2) +
-    geom_line(data = reactive_driver(), mapping = aes(colour = "Driver Data"), lwd = 3) +
-    geom_line(data = reactive_CAGR_forecast(), mapping = aes(colour = "CAGR Forecast"), lwd = 3) +
-    geom_line(data = reactive_old(), mapping = aes(colour = "Last Year"), lwd = 2) +
-    geom_line(data = reactive_new(), mapping = aes(colour = "New Forecast"), lwd = 2) +
-    geom_line(data = reactive_already(), mapping = aes(colour = "Forecast Already"), lwd = 2) +
+plotly::renderPlotly({
+  plt <- ggplot(mapping=aes(year,value)) +
+    geom_line(data = reactive_employment(), mapping = aes(colour = "Employment"), lwd = 1)
+  if(nrow(reactive_driver())>1){
+    plt <- plt+geom_line(data = reactive_driver(), mapping = aes(colour = "Driver Data"), lwd = 2)
+  } 
+  plt <- plt+
+    geom_line(data = reactive_CAGR_forecast(), mapping = aes(colour = "CAGR Forecast"), lwd = 2) +
+    geom_line(data = reactive_old(), mapping = aes(colour = "Last Year"), lwd = 1) +
+    geom_line(data = reactive_new(), mapping = aes(colour = "New Forecast"), lwd = 1) 
+  if(nrow(reactive_already())>1){
+    plt <- plt+geom_line(data = reactive_already(), mapping = aes(colour = "Forecast Already"), lwd = 1)
+  }
+  plt <- plt+
     scale_color_manual(values = colors) +
     scale_y_continuous(labels = scales::comma) +
-    scale_x_continuous(breaks = seq(min(reactive_employment()$year),max(reactive_new()$year),2))+
+    scale_x_continuous(breaks = seq(min(reactive_employment()$year), max(reactive_new()$year),2))+
     labs(x = "", y = "", color = "") +
-    theme(legend.position = "bottom") +
     theme(text = element_text(size = 20))
+  ggplotly(plt)%>%
+  layout(legend = list(
+      orientation = "h"
+    )
+  )
 })
 ```
 
