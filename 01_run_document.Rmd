@@ -32,6 +32,7 @@ library(DT)
 library(markdown)
 library(shinyalert)
 library(fuzzyjoin)
+library(plotly)
 # constants-----------------------------
 historic_start <- 2010
 historic_end <- 2019
@@ -81,6 +82,9 @@ employment <- read_excel(here("data","current","Employment for 64 LMO Industries
   group_by(code, industry)%>%
   nest()%>%
   rename(employment=data)
+
+# sim_fcast <- read_csv(here("data","current","sim_fcasts.csv"))|>
+#   rename(value=mean_fcast)
 
 old_forecast <- read_rds(here("data","current","old_forecast.rds"))%>%
   stringdist_right_join(employment)%>% #stoke f'd up industry names: manually check the fuzzy join
@@ -246,18 +250,17 @@ observeEvent(input$reset, {
   updateSliderInput(inputId = "adjust_eleventh", value = 1)
 })
 # reactive elements------------------------
-reactive_prop <- reactive({
-  prop_fcast %>%
-    filter(industry == input$industry)
-})
+
 reactive_driver <- reactive({
   driver_data %>%
     filter(industry == input$industry)
 })
+
 reactive_employment <- reactive({
   employment %>%
     filter(industry == input$industry)
 })
+
 reactive_employment_cagr <- reactive({
   get_cagr(reactive_employment(), historic_start, historic_end)
 })
@@ -270,6 +273,11 @@ reactive_old <- reactive({
 reactive_CAGR_forecast <- reactive({
   make_forecast(reactive_employment())
 })
+
+# reactive_sim_forecast <- reactive({
+#   sim_fcast %>%
+#     filter(industry == input$industry)
+# })
 
 reactive_old_cagr <- reactive({
   ffy <- get_cagr(reactive_old(), min(forecast_years) - 1, mean(forecast_years) - 1)
