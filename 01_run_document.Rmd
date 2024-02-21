@@ -52,7 +52,7 @@ get_cagr <- function(tbbl, start_year, end_year) {
     pull(value)
   c(start_year, end_year, scales::percent((end_val / start_val)^(1 / (end_year - start_year)) - 1, accuracy = .1))
 }
-# make forecast, where the forecast grows at the 2010-2019 CAGR.
+
 make_forecast <- function(tbbl){
   tbbl <- tbbl%>%
     mutate(year=as.numeric(year))
@@ -67,9 +67,8 @@ make_forecast <- function(tbbl){
   multiply_last_value_by <- historic_cagr^(1:11)
   year <- (max(tbbl$year)+1):(max(tbbl$year)+11)
   value <- last_value*multiply_last_value_by
-  tibble(industry=input$industry, year=year, value=value)
+  tibble(year=year, value=value)
 }
-
 # read in the data--------------------------
 # this file is treated as having THE correct industry names and codes.
 employment <- read_excel(here("data","current","Employment for 64 LMO Industries 2000-2023.xlsx"), 
@@ -196,7 +195,7 @@ sliderInput("shift", "Shift up or down",
   value = 1, step = .01
 )
 sliderInput("slope", "Change slope",
-  min = .97, max = 1.03,
+  min = .95, max = 1.03,
   value = 1, step = .001
 )
 actionButton("save", "Write forecast to disk")
@@ -271,7 +270,8 @@ reactive_old <- reactive({
 })
 
 reactive_CAGR_forecast <- reactive({
-  make_forecast(reactive_employment())
+  make_forecast(reactive_employment())|>
+    mutate(industry=input$industry)
 })
 
 # reactive_sim_forecast <- reactive({
