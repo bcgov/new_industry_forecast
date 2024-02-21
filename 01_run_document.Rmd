@@ -67,7 +67,7 @@ make_forecast <- function(tbbl){
   multiply_last_value_by <- historic_cagr^(1:11)
   year <- (max(tbbl$year)+1):(max(tbbl$year)+11)
   value <- last_value*multiply_last_value_by
-  tibble(year=year, value=value)
+  tibble(industry=input$industry, year=year, value=value)
 }
 # read in the data--------------------------
 # this file is treated as having THE correct industry names and codes.
@@ -270,8 +270,7 @@ reactive_old <- reactive({
 })
 
 reactive_CAGR_forecast <- reactive({
-  make_forecast(reactive_employment())|>
-    mutate(industry=input$industry)
+  make_forecast(reactive_employment())
 })
 
 # reactive_sim_forecast <- reactive({
