@@ -186,7 +186,7 @@ selectInput(
 selectInput(
   "fcast",
   "Select a forecast to modify",
-  c("Last Year","Driver","CAGR Forecast"),
+  c("Last Year","Driver","CAGR Forecast","Sim Forecast"),
   selected = "Last Year"
 )
 
@@ -328,6 +328,14 @@ reactive_new <- reactive({
       value = value * slope,
       value = round(value * adjustment_vector)
     ) %>%
+    select(-slope, -adjustment_vector),
+  input$fcast=="Sim Forecast"~ reactive_sim_forecast()%>%
+    mutate(value = value * input$shift) %>%
+    full_join(adjustments) %>%
+    mutate(
+      value = value * slope,
+      value = round(value * adjustment_vector)
+    ) %>%
     select(-slope, -adjustment_vector)
   )
 })
@@ -378,9 +386,10 @@ plotly::renderPlotly({
   } 
   plt <- plt+
     geom_line(data = reactive_CAGR_forecast(), mapping = aes(colour = "CAGR Forecast"), lwd = 2) +
+    geom_line(data = reactive_sim_forecast(), mapping = aes(colour = "Sim Forecast"), lwd = 2)+
     geom_line(data = reactive_old(), mapping = aes(colour = "Last Year"), lwd = 1) +
-    geom_line(data = reactive_new(), mapping = aes(colour = "New Forecast"), lwd = 1)+
-    geom_line(data = reactive_sim_forecast(), mapping = aes(colour = "Sim Forecast"), lwd = 2)
+    geom_line(data = reactive_new(), mapping = aes(colour = "New Forecast"), lwd = 1)
+    
   if(nrow(reactive_already())>1){
     plt <- plt+geom_line(data = reactive_already(), mapping = aes(colour = "Forecast Already"), lwd = 1)
   }
