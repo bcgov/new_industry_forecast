@@ -36,7 +36,7 @@ library(plotly)
 # constants-----------------------------
 historic_start <- 2010
 historic_end <- 2019
-colors <- c("Employment" = "black", "Last Year" = "purple", "New Forecast" = "orange", "Driver Data" = "blue", "Forecast Already" = "red", "CAGR Forecast"="aquamarine")
+colors <- c("Employment" = "black", "Last Year" = "purple", "New Forecast" = "orange", "Driver Data" = "blue", "Forecast Already" = "red", "CAGR Forecast"="aquamarine", "Sim Forecast"="yellow")
 
 # if forecast table doesn't exist create it.--------------------
 if (!file.exists(here("out","current", "forecasts.csv"))) {
@@ -82,8 +82,8 @@ employment <- read_excel(here("data","current","Employment for 64 LMO Industries
   nest()%>%
   rename(employment=data)
 
-# sim_fcast <- read_csv(here("data","current","sim_fcasts.csv"))|>
-#   rename(value=mean_fcast)
+sim_fcast <- read_csv(here("data","current","sim_fcasts.csv"))|>
+  rename(value=mean_fcast)
 
 old_forecast <- read_rds(here("data","current","old_forecast.rds"))%>%
   stringdist_right_join(employment)%>% #stoke f'd up industry names: manually check the fuzzy join
@@ -273,10 +273,10 @@ reactive_CAGR_forecast <- reactive({
   make_forecast(reactive_employment())
 })
 
-# reactive_sim_forecast <- reactive({
-#   sim_fcast %>%
-#     filter(industry == input$industry)
-# })
+reactive_sim_forecast <- reactive({
+  sim_fcast %>%
+    filter(industry == input$industry)
+})
 
 reactive_old_cagr <- reactive({
   ffy <- get_cagr(reactive_old(), min(forecast_years) - 1, mean(forecast_years) - 1)
@@ -379,7 +379,8 @@ plotly::renderPlotly({
   plt <- plt+
     geom_line(data = reactive_CAGR_forecast(), mapping = aes(colour = "CAGR Forecast"), lwd = 2) +
     geom_line(data = reactive_old(), mapping = aes(colour = "Last Year"), lwd = 1) +
-    geom_line(data = reactive_new(), mapping = aes(colour = "New Forecast"), lwd = 1) 
+    geom_line(data = reactive_new(), mapping = aes(colour = "New Forecast"), lwd = 1)+
+    geom_line(data = reactive_sim_forecast(), mapping = aes(colour = "Sim Forecast"), lwd = 2)
   if(nrow(reactive_already())>1){
     plt <- plt+geom_line(data = reactive_already(), mapping = aes(colour = "Forecast Already"), lwd = 1)
   }
