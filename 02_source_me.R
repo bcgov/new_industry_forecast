@@ -7,7 +7,7 @@ library(here)
 library(readxl)
 library(janitor)
 library(scales)
-library(aest)
+library(wrapR)
 library(assertthat)
 library(ggpmisc)
 library(patchwork)
@@ -42,63 +42,73 @@ get_cagr <- function(tbbl, start, end, series){
   tibble(start=start, end=end, cagr=cagr)
 }
 #creates a combination plot and tables-----------------------
+# make_plot <- function(tbbl, industry, old, last, raw, bend, continue){
+#   #the main plot
+#   plt <- ggplot()+
+#     geom_line(data=tbbl, mapping=aes(year,value, colour=series), lwd=1.5)+
+#     scale_y_continuous(labels=scales::comma)+
+#     labs(x="",y="Employment",colour="", title=industry)+
+#     theme_minimal(base_size = 15)
+#   #table for historical cagr
+#   old <- ggplot() +
+#     theme_void() +
+#     annotate(geom = "table",
+#              x = 1,
+#              y = 1,
+#              label = list(old))+
+#     labs(title="historical")
+#   # 3 cagr table for last year's forecast (which possibly doesnt exist)
+#   if(nrow(last)==0){
+#     last <- ggplot()+
+#       theme_void() +
+#       labs(title="No forecast last year")
+#   }else{
+#     last <- ggplot() +
+#       theme_void() +
+#       annotate(geom = "table",
+#                x = 1,
+#                y = 1,
+#                label = list(last))+
+#       labs(title="last year")
+#   }
+#   # 3 cagr table for this year's raw forecast
+#   raw <- ggplot() +
+#     theme_void() +
+#     annotate(geom = "table",
+#              x = 1,
+#              y = 1,
+#              label = list(raw))+
+#     labs(title="raw")
+#   # 3 cagr table for bend adjusted
+#   bend <- ggplot() +
+#     theme_void() +
+#     annotate(geom = "table",
+#              x = 1,
+#              y = 1,
+#              label = list(bend))+
+#     labs(title="bend")
+#   # 3 cagr table for continue adjusted
+#   continue <- ggplot() +
+#     theme_void() +
+#     annotate(geom = "table",
+#              x = 1,
+#              y = 1,
+#              label = list(continue))+
+#     labs(title="continue")
+#   #layout the plots (patchwork)
+#   plt/(old+last+raw+bend+continue)+
+#     plot_layout(heights = c(2,1))
+# }
+
 make_plot <- function(tbbl, industry, old, last, raw, bend, continue){
-  #the main plot
-  plt <- ggplot()+
-    geom_line(data=tbbl, mapping=aes(year,value, colour=series), lwd=1.5)+
+  ggplot()+
+    geom_line(data=tbbl, mapping=aes(year,value, colour=series))+
     scale_y_continuous(labels=scales::comma)+
-    labs(x="",y="Employment",colour="", title=industry)+
-    theme_minimal(base_size = 15)
-  #table for historical cagr
-  old <- ggplot() +
-    theme_void() +
-    annotate(geom = "table",
-             x = 1,
-             y = 1,
-             label = list(old))+
-    labs(title="historical")
-  # 3 cagr table for last year's forecast (which possibly doesnt exist)
-  if(nrow(last)==0){
-    last <- ggplot()+
-      theme_void() +
-      labs(title="No forecast last year")
-  }else{
-    last <- ggplot() +
-      theme_void() +
-      annotate(geom = "table",
-               x = 1,
-               y = 1,
-               label = list(last))+
-      labs(title="last year")
-  }
-  # 3 cagr table for this year's raw forecast
-  raw <- ggplot() +
-    theme_void() +
-    annotate(geom = "table",
-             x = 1,
-             y = 1,
-             label = list(raw))+
-    labs(title="raw")
-  # 3 cagr table for bend adjusted
-  bend <- ggplot() +
-    theme_void() +
-    annotate(geom = "table",
-             x = 1,
-             y = 1,
-             label = list(bend))+
-    labs(title="bend")
-  # 3 cagr table for continue adjusted
-  continue <- ggplot() +
-    theme_void() +
-    annotate(geom = "table",
-             x = 1,
-             y = 1,
-             label = list(continue))+
-    labs(title="continue")
-  #layout the plots (patchwork)
-  plt/(old+last+raw+bend+continue)+
-    plot_layout(heights = c(2,1))
+    labs(x=NULL,y="Employment",colour=NULL, title=industry)+
+    theme_minimal(base_size = 15)+
+    coord_cartesian(ylim = c(0, NA))
 }
+
 # unnests cagrs and makes wider.------------------
 unnest_cagrs <- function(tbbl, nest, series){
   tbbl%>%
@@ -109,7 +119,7 @@ unnest_cagrs <- function(tbbl, nest, series){
     pivot_wider(names_from = period, values_from = cagr, names_prefix = "CAGR: ")
 }
 # read in the data--------------------------
-employment <- read_excel(here("data","current","Employment for 64 LMO Industries,2000-2022.xlsx"), skip = 2, sheet = "British Columbia")%>%
+employment <- read_excel(here("data","current","Employment for 64 LMO Industries 2000-2023.xlsx"), skip = 2, sheet = "British Columbia")%>%
   pivot_longer(cols=-contains("Lmo"), names_to="year", values_to = "value")%>%
   rename(industry=contains("industry"),
          code=contains("code"))%>%
@@ -118,18 +128,25 @@ employment <- read_excel(here("data","current","Employment for 64 LMO Industries
   nest()%>%
   rename(employment=data)
 #old forecasts have different industry codes so we drop the codes, join with employment by industry name to get new codes.----------
-old_forecast <- read_excel(here("data","current","LMO 2022E Employment by Industry BC.xlsx"), skip = 2)%>%
-  select(-contains("CAGR"), -NOC,-Description, -Variable, -`Geographic Area`)%>%
-  filter(Industry!="All industries")%>%
+old_forecast <- read_csv(here("data","current","LMO_2023_employment.csv"), skip = 3)|>
+  janitor::remove_empty("cols")|>
+  filter(`Geographic Area`=="British Columbia",
+         NOC=="#T",
+         Industry!="All industries"
+         )%>%
+  select(-contains("CAGR"), -NOC, -Description, -Variable, -`Geographic Area`)%>%
   pivot_longer(cols=-Industry, names_to = "year", values_to = "value")%>%
   mutate(year=as.numeric(year))%>%
   clean_names()%>%
   group_by(industry)%>%
   nest()%>%
   rename(old_forecast=data)%>%
-  right_join(employment)%>%
+  fuzzyjoin::stringdist_join(employment)%>% #fuzzyjoin because stokes f'd up the industry names
   select(-employment)%>%
-  filter(!is.na(code))%>%
+  filter(!is.na(code))|>
+  rename(industry=industry.y)|>
+  ungroup()|>
+  select(-industry.x)%>%
   unnest(old_forecast)%>%
   unite(industry, code, industry, sep=": ")%>%
   mutate(year=as.numeric(year))
