@@ -295,6 +295,8 @@ reactive_old_cagr <- reactive({
   temp
 })
 
+#my most terrible function ever------------------
+
 reactive_new <- reactive({
   adjustment_vector <- c(
     input$adjust_first,
@@ -317,45 +319,46 @@ reactive_new <- reactive({
                         adjustment_vector = adjustment_vector)
   
   case_when(input$fcast=="Last Year" ~ reactive_old() %>%
-    mutate(year = year + 1) %>%
-    mutate(value = value * input$shift) %>%
-    full_join(adjustments) %>%
-    mutate(
-      value = value * slope,
-      value = value * curvature,
-      value = round(value * adjustment_vector)
-    ) %>%
-    select(-slope, -adjustment_vector),
-  input$fcast=="Driver" ~ reactive_driver()%>%
-    mutate(value = value * input$shift) %>%
-    full_join(adjustments) %>%
-    mutate(
-      value = value * slope,
-      value = value * curvature,
-      value = round(value * adjustment_vector)
-    ) %>%
-    select(-slope, -adjustment_vector),
-  input$fcast=="CAGR Forecast"~ reactive_CAGR_forecast()%>%
-    mutate(value = value * input$shift) %>%
-    full_join(adjustments) %>%
-    mutate(
-      value = value * slope,
-      value = value * curvature,
-      value = round(value * adjustment_vector)
-    ) %>%
-    select(-slope, -adjustment_vector),
-  input$fcast=="Sim Forecast"~ reactive_sim_forecast()%>%
-    mutate(value = value * input$shift) %>%
-    full_join(adjustments) %>%
-    mutate(
-      value = value * slope,
-      value = value * curvature,
-      value = round(value * adjustment_vector)
-    ) %>%
-    select(-slope, -adjustment_vector)
+              mutate(year = year + 1) %>%
+              mutate(value = value * input$shift) %>%
+              full_join(adjustments) %>%
+              mutate(
+                value = value * slope,
+                value = value * curvature,
+                value = round(value * adjustment_vector)
+              ) %>%
+              select(-slope, -adjustment_vector),
+            input$fcast=="Driver" ~ reactive_driver()%>%
+              mutate(value = value * input$shift) %>%
+              full_join(adjustments) %>%
+              mutate(
+                value = value * slope,
+                value = value * curvature,
+                value = round(value * adjustment_vector)
+              ) %>%
+              select(-slope, -adjustment_vector),
+            input$fcast=="CAGR Forecast"~ reactive_CAGR_forecast()%>%
+              mutate(value = value * input$shift) %>%
+              full_join(adjustments) %>%
+              mutate(
+                value = value * slope,
+                value = value * curvature,
+                value = round(value * adjustment_vector)
+              ) %>%
+              select(-slope, -adjustment_vector),
+            input$fcast=="Sim Forecast"~ reactive_sim_forecast()%>%
+              mutate(value = value * input$shift) %>%
+              full_join(adjustments) %>%
+              mutate(
+                value = value * slope,
+                value = value * curvature,
+                value = round(value * adjustment_vector)
+              ) %>%
+              select(-slope, -adjustment_vector)
   )
 })
 
+# end of ridiculously long function---------------
 reactive_new_cagr <- reactive({
   ffy <- get_cagr(reactive_new(), min(forecast_years), mean(forecast_years))
   sfy <- get_cagr(reactive_new(), mean(forecast_years), max(forecast_years))
