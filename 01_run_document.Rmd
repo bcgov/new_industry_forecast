@@ -200,8 +200,8 @@ sliderInput("slope", "Change slope",
 )
 
 numericInput(
-  "curvature", "Change curvature",
-  min = -1000, max = 1000,
+  "curvature", "Degree of concavity",
+  min = -100, max = 100,
   value = 0, step = 1
 )
 
@@ -312,8 +312,8 @@ reactive_new <- reactive({
   adjustments <- tibble(year = forecast_years, 
                         slope = input$slope^(forecast_years - min(forecast_years)),
                         curvature =  case_when(input$curvature==0 ~ 1,
-                                               input$curvature>0 ~ (1-(abs(forecast_years-mean(forecast_years))/(1001-abs(input$curvature)))^2),
-                                               input$curvature<0 ~ ((abs(forecast_years-mean(forecast_years))/(1001-abs(input$curvature)))^2+1)),
+                                               input$curvature>0 ~ (1-(abs(forecast_years-mean(forecast_years))/(101-abs(input$curvature)))^2),
+                                               input$curvature<0 ~ ((abs(forecast_years-mean(forecast_years))/(101-abs(input$curvature)))^2+1)),
                         adjustment_vector = adjustment_vector)
   
   case_when(input$fcast=="Last Year" ~ reactive_old() %>%
