@@ -198,6 +198,13 @@ sliderInput("slope", "Change slope",
   min = .95, max = 1.03,
   value = 1, step = .001
 )
+
+numericInput(
+  "curvature", "Change curvature",
+  min = -1000, max = 1000,
+  value = 0, step = 1
+)
+
 actionButton("save", "Write forecast to disk")
 sliderInput("adjust_first", paste("Adjust ", forecast_years[1]),
   min = .9, max = 1.2,   value = 1, step = .001
@@ -236,6 +243,7 @@ sliderInput("adjust_eleventh", paste("Adjust ", forecast_years[11]),
 observeEvent(input$reset, {
   updateSliderInput(inputId = "shift", value = 1)
   updateSliderInput(inputId = "slope", value = 1)
+  updateNumericInput(inputId = "curvature", value = 0)
   updateSliderInput(inputId = "adjust_first", value = 1)
   updateSliderInput(inputId = "adjust_second", value = 1)
   updateSliderInput(inputId = "adjust_third", value = 1)
@@ -302,7 +310,10 @@ reactive_new <- reactive({
     input$adjust_eleventh
   )
   adjustments <- tibble(year = forecast_years, 
-                        slope = input$slope^(forecast_years - min(forecast_years)), 
+                        slope = input$slope^(forecast_years - min(forecast_years)),
+                        curvature =  case_when(input$curvature==0 ~ 1,
+                                               input$curvature>0 ~ (1-(abs(forecast_years-mean(forecast_years))/(1001-abs(input$curvature)))^2),
+                                               input$curvature<0 ~ ((abs(forecast_years-mean(forecast_years))/(1001-abs(input$curvature)))^2+1)),
                         adjustment_vector = adjustment_vector)
   
   case_when(input$fcast=="Last Year" ~ reactive_old() %>%
@@ -311,6 +322,7 @@ reactive_new <- reactive({
     full_join(adjustments) %>%
     mutate(
       value = value * slope,
+      value = value * curvature,
       value = round(value * adjustment_vector)
     ) %>%
     select(-slope, -adjustment_vector),
@@ -319,6 +331,7 @@ reactive_new <- reactive({
     full_join(adjustments) %>%
     mutate(
       value = value * slope,
+      value = value * curvature,
       value = round(value * adjustment_vector)
     ) %>%
     select(-slope, -adjustment_vector),
@@ -327,6 +340,7 @@ reactive_new <- reactive({
     full_join(adjustments) %>%
     mutate(
       value = value * slope,
+      value = value * curvature,
       value = round(value * adjustment_vector)
     ) %>%
     select(-slope, -adjustment_vector),
@@ -335,6 +349,7 @@ reactive_new <- reactive({
     full_join(adjustments) %>%
     mutate(
       value = value * slope,
+      value = value * curvature,
       value = round(value * adjustment_vector)
     ) %>%
     select(-slope, -adjustment_vector)
