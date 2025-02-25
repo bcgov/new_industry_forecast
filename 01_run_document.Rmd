@@ -117,7 +117,7 @@ forecast_years <- old_forecast %>% # the years to be forecast
   distinct(year) %>%
   pull(year) + 1
 
-driver_data <- read_excel(here("data","current","Driver-based forecast 2024 Feb 27.xlsx"))%>%  
+driver_data <- read_excel(here("data","current","driver_2025_partial.xlsx"))%>%  
   select(-contains("code"))%>%
   rename(industry=`Ind Des`)%>%
   pivot_longer(cols=-industry, names_to = "year", values_to = "value")%>%
@@ -130,7 +130,8 @@ driver_data <- read_excel(here("data","current","Driver-based forecast 2024 Feb 
   rename(industry=industry.y)%>%
   unnest(driver_data)%>%
   unite(industry, code, industry, sep=": ")%>%
-  mutate(year=as.numeric(year)) 
+  mutate(year=as.numeric(year),
+         value=1000*value) 
 
 employment <- employment%>%
   unnest(employment)%>%
@@ -140,7 +141,7 @@ employment <- employment%>%
 forecast_already <- read_csv(here("out","current", "forecasts.csv"))%>%
   group_by(industry, year) %>%
   summarize(value = last(value))|> # only the most recent forecast
-  mutate(industry=str_sub(industry, end=-3)) #hack to address extra columns of 1's appended when writing to disk WTF???
+  mutate(industry=str_sub(industry, end=-3)) #hack to fix extra columns of 1's appended when writing to disk WTF???
 
 constraint <- read_csv(here("data","current", "constraint.csv"))|>
   filter(year %in% forecast_years[1:5])|>
@@ -230,7 +231,11 @@ numericInput(
   min = -100, max = 100,
   value = 0, step = 1
 )
+```
 
+**The space where "Write forecast to disk" normally is**
+
+```{r}
 #actionButton("save", "Write forecast to disk") #disabled for shinyapps.io
 
 sliderInput("adjust_first", paste("Adjust ", forecast_years[1]),
