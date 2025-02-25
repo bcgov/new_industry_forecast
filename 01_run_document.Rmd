@@ -1,10 +1,18 @@
 ---
 title: "Industry Forecasts"
-output: 
+output:
   flexdashboard::flex_dashboard:
     orientation: rows
     vertical_layout: fill
-runtime: shiny   
+runtime: shiny
+resource_files:
+- "data/current/Employment for 64 LMO Industries 2000-2024.xlsx"
+- data/current/sim_fcasts.csv
+- data/current/lmo_employment_previous.xlsx
+- "data/current/Driver-based forecast 2024 Feb 27.xlsx"
+- data/current/constraint.csv
+- out/current/forecasts.csv
+- "data/current/2024E_internal industry forecast_group notes - 2024 03 05.xlsx"
 ---
 
 ```{css, echo=FALSE}
@@ -19,8 +27,6 @@ runtime: shiny
 #' fuzzyjoins, which necessitates manually verifying that the joins were done correctly.  The
 #' file prepared for Stokes is viewed to be the "correct" naming and numbering,
 #' and then we impose this naming on last year's forecasts and the driver data to ensure consistency.
-#' 
-
 
 # libraries---------------------
 library(flexdashboard)
@@ -34,8 +40,8 @@ library(shinyalert)
 library(fuzzyjoin)
 library(plotly)
 # constants-----------------------------
-historic_start <- 2010
-historic_end <- 2019
+historic_start <- 2015
+historic_end <- 2024
 colors <- c("Employment" = "black", "Last Year" = "purple", "New Forecast" = "orange", "Driver Data" = "blue", "Forecast Already" = "red", "CAGR Forecast"="aquamarine", "Sim Forecast"="yellow")
 
 # if forecast table doesn't exist create it.--------------------
@@ -71,10 +77,10 @@ make_forecast <- function(tbbl){
 }
 # read in the data--------------------------
 # this file is treated as having THE correct industry names and codes.
-employment <- read_excel(here("data","current","Employment for 64 LMO Industries 2000-2023.xlsx"), 
+employment <- read_excel(here("data","current","Employment for 64 LMO Industries 2000-2024.xlsx"), 
                          skip = 2, 
                          sheet = "British Columbia")%>%
-  pivot_longer(cols=-contains("Lmo"), names_to="year", values_to = "value")%>%
+  pivot_longer(cols=starts_with("2"), names_to="year", values_to = "value")%>%
   rename(industry=contains("industry"),
          code=contains("code"))%>%
   filter(str_detect(code, "ind"))%>%
@@ -85,7 +91,19 @@ employment <- read_excel(here("data","current","Employment for 64 LMO Industries
 sim_fcast <- read_csv(here("data","current","sim_fcasts.csv"))|>
   rename(value=mean_fcast)
 
-old_forecast <- read_rds(here("data","current","old_forecast.rds"))%>%
+old <- readxl::read_excel(here("data","current","lmo_employment_previous.xlsx"), skip = 3)|>
+  janitor::remove_constant()|>
+  pivot_longer(cols=-Industry, names_to = "year")%>%
+  mutate(year=as.numeric(year))%>%
+  clean_names()%>%
+  group_by(industry)%>%
+  nest()%>%
+  rename(old_forecast=data)
+
+#anti_join(employment, old)|>view()
+#anti_join(old, employment)|>view()
+
+old_forecast <- old%>%
   stringdist_right_join(employment)%>% #stoke f'd up industry names: manually check the fuzzy join
   ungroup()|>
   select(-employment, -industry.x)%>%
@@ -106,7 +124,7 @@ driver_data <- read_excel(here("data","current","Driver-based forecast 2024 Feb 
   group_by(industry)%>%
   nest()%>%
   rename(driver_data=data)%>%
-  stringdist_right_join(employment)%>% #don't trust industry names: should manually check the fuzzy join
+  stringdist_right_join(employment)%>% #don't trust industry names: manually check the fuzzy join
   ungroup()|>
   select(-employment, -industry.x)%>%
   rename(industry=industry.y)%>%
@@ -119,9 +137,10 @@ employment <- employment%>%
   unite(industry, code, industry, sep=": ")%>%
   mutate(year=as.numeric(year))
 
-forecast_already <- read_csv(here("out","current", "forecasts.csv")) %>%
+forecast_already <- read_csv(here("out","current", "forecasts.csv"))%>%
   group_by(industry, year) %>%
-  summarize(value = last(value)) # only the most recent forecast
+  summarize(value = last(value))|> # only the most recent forecast
+  mutate(industry=str_sub(industry, end=-3)) #hack to address extra columns of 1's appended when writing to disk WTF???
 
 constraint <- read_csv(here("data","current", "constraint.csv"))|>
   filter(year %in% forecast_years[1:5])|>
@@ -167,9 +186,16 @@ if (nrow(forecast_already > 0)) {
 }
 #get notes from last year-----------------
 
-notes <- read_excel(here("data","current","2024_industry_forecast_notes.xlsx"))%>%
-  unite(industry, contains("code"), contains("industry"), sep=": ")%>%
-  mutate(notes=str_replace_all(notes, "-"," "))
+notes <- read_excel(here("data","current","2024E_internal industry forecast_group notes - 2024 03 05.xlsx"))%>%
+  unite(industry, contains("code"), contains("industry"), sep=": ")|>
+  select(industry, starts_with("2"))%>%
+  stringdist_right_join(employment|>select(industry)|>distinct())|>
+  select(starts_with("2"), industry.y)%>%
+  rename(industry=industry.y)|>
+  pivot_longer(cols=starts_with("2"))%>%
+  mutate(value=str_replace_all(value, "-"," "),
+         name=str_remove_all(name, "- notes on forecast"))
+
 ```
 
 ## Inputs {.sidebar}
@@ -205,7 +231,8 @@ numericInput(
   value = 0, step = 1
 )
 
-actionButton("save", "Write forecast to disk")
+#actionButton("save", "Write forecast to disk")
+
 sliderInput("adjust_first", paste("Adjust ", forecast_years[1]),
   min = .9, max = 1.2,   value = 1, step = .001
 )
@@ -219,7 +246,7 @@ sliderInput("adjust_fourth", paste("Adjust ", forecast_years[4]),
   min = .9, max = 1.2,   value = 1, step = .001
 )
 sliderInput("adjust_fifth", paste("Adjust ", forecast_years[5]),
-  min = .8, max = 1.2,
+  min = .9, max = 1.2,
   value = 1, step = .01
 )
 sliderInput("adjust_sixth", paste("Adjust ", forecast_years[6]),
@@ -354,11 +381,14 @@ reactive_new <- reactive({
                 value = value * curvature,
                 value = round(value * adjustment_vector)
               ) %>%
-              select(-slope, -adjustment_vector)
+              ungroup()|>
+              select(year, value, industry)|>
+              as_tibble()
   )
 })
 
 # end of ridiculously long function---------------
+
 reactive_new_cagr <- reactive({
   ffy <- get_cagr(reactive_new(), min(forecast_years), mean(forecast_years))
   sfy <- get_cagr(reactive_new(), mean(forecast_years), max(forecast_years))
@@ -374,6 +404,7 @@ reactive_already <- reactive({
   forecast_already %>%
     filter(industry == input$industry)
 })
+
 observeEvent(input$save, {
   write.table(reactive_new(),
     here("out","current", "forecasts.csv"),
@@ -384,10 +415,11 @@ observeEvent(input$save, {
     col.names = !file.exists(here("out","current", "forecasts.csv"))
   )
 })
+
 reactive_notes <- reactive({
   notes %>%
-    filter(industry == input$industry)%>%
-    pull(notes)
+    filter(industry == input$industry)|>
+    select(-industry)
 })
 
 ```
@@ -426,11 +458,11 @@ plotly::renderPlotly({
 })
 ```
 
-### Notes from last year
+### Previous years' notes
 
 ```{r}
-renderUI({
-  reactive_notes()
+renderDT({
+  DT::datatable(reactive_notes(), colnames = NULL, rownames = FALSE, options(dom="t"))
 })
 ```
 
