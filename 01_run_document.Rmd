@@ -9,10 +9,11 @@ resource_files:
 - "data/current/Employment for 64 LMO Industries 2000-2024.xlsx"
 - data/current/sim_fcasts.csv
 - data/current/lmo_employment_previous.xlsx
-- "data/current/Driver-based forecast 2024 Feb 27.xlsx"
 - data/current/constraint.csv
 - out/current/forecasts.csv
 - "data/current/2024E_internal industry forecast_group notes - 2024 03 05.xlsx"
+- data/current/constraint.xlsx
+- data/current/driver_2025_partial.xlsx
 ---
 
 ```{css, echo=FALSE}
@@ -143,7 +144,7 @@ forecast_already <- read_csv(here("out","current", "forecasts.csv"))%>%
   summarize(value = last(value))|> # only the most recent forecast
   mutate(industry=str_sub(industry, end=-3)) #hack to fix extra columns of 1's appended when writing to disk WTF???
 
-constraint <- read_csv(here("data","current", "constraint.csv"))|>
+constraint <- read_xlsx(here("data","current", "constraint.xlsx"))|>
   filter(year %in% forecast_years[1:5])|>
   select(year, employment)
 
@@ -226,17 +227,16 @@ sliderInput("slope", "Change slope",
   value = 1, step = .001
 )
 
-numericInput(
+sliderInput(
   "curvature", "Degree of concavity",
   min = -100, max = 100,
   value = 0, step = 1
 )
 ```
 
-**The space where "Write forecast to disk" normally is**
 
 ```{r}
-#actionButton("save", "Write forecast to disk") #disabled for shinyapps.io
+actionButton("save", "Write forecast to disk") #disabled for shinyapps.io
 
 sliderInput("adjust_first", paste("Adjust ", forecast_years[1]),
   min = .9, max = 1.2,   value = 1, step = .001
@@ -438,8 +438,9 @@ plotly::renderPlotly({
   plt <- ggplot(mapping=aes(year,value)) +
     geom_line(data = reactive_employment(), mapping = aes(colour = "Employment"), lwd = 1)
   if(nrow(reactive_driver())>1){
+    if(is.na(reactive_driver()$value[1])){shinyalert("No driver data yet")}
     plt <- plt+geom_line(data = reactive_driver(), mapping = aes(colour = "Driver Data"), lwd = 2)
-  } 
+  }
   plt <- plt+
     geom_line(data = reactive_CAGR_forecast(), mapping = aes(colour = "CAGR Forecast"), lwd = 2) +
     geom_line(data = reactive_sim_forecast(), mapping = aes(colour = "Sim Forecast"), lwd = 2)+
