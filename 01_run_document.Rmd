@@ -41,7 +41,7 @@ library(shinyalert)
 library(fuzzyjoin)
 library(plotly)
 # constants-----------------------------
-historic_start <- 2015
+historic_start <- 2014
 historic_end <- 2024
 colors <- c("Employment" = "black", "Last Year" = "purple", "New Forecast" = "orange", "Driver Data" = "blue", "Forecast Already" = "red", "CAGR Forecast"="aquamarine", "Sim Forecast"="yellow")
 
@@ -140,10 +140,13 @@ employment <- employment%>%
   unite(industry, code, industry, sep=": ")%>%
   mutate(year=as.numeric(year))
 
+#' for some reason extra column added when writing to disk, and then appended
+#' to industry when read. The extract step below splits industry on the last
+#' comma... should fix this bug after forecasting done. 
+
 forecast_already <- read_csv(here("out","current", "forecasts.csv"))%>%
   group_by(industry, year) %>%
-  summarize(value = last(value))|> # only the most recent forecast
-  mutate(industry=str_sub(industry, end=-3)) #hack to fix extra columns of 1's appended when writing to disk WTF???
+  summarize(value = last(value))# only the most recent forecast if multiple
 
 constraint <- read_xlsx(here("data","current", "constraint.xlsx"))|>
   filter(year %in% forecast_years[1:5])|>
@@ -225,7 +228,7 @@ sliderInput("shift", "Shift up or down",
 )
 sliderInput("slope", "Change slope",
   min = .9, max = 1.1,
-  value = 1, step = .005
+  value = 1, step = .001
 )
 
 sliderInput(
@@ -361,7 +364,7 @@ reactive_new <- reactive({
                 value = value * curvature,
                 value = round(value * adjustment_vector)
               ) %>%
-              select(-slope, -adjustment_vector),
+              select(year, value, industry),
             input$fcast=="Driver" ~ reactive_driver()%>%
               mutate(value = value * input$shift) %>%
               full_join(adjustments) %>%
@@ -370,7 +373,7 @@ reactive_new <- reactive({
                 value = value * curvature,
                 value = round(value * adjustment_vector)
               ) %>%
-              select(-slope, -adjustment_vector),
+              select(year, value, industry),
             input$fcast=="CAGR Forecast"~ reactive_CAGR_forecast()%>%
               mutate(value = value * input$shift) %>%
               full_join(adjustments) %>%
@@ -379,7 +382,7 @@ reactive_new <- reactive({
                 value = value * curvature,
                 value = round(value * adjustment_vector)
               ) %>%
-              select(-slope, -adjustment_vector),
+              select(year, value, industry),
             input$fcast=="Sim Forecast"~ reactive_sim_forecast()%>%
               mutate(value = value * input$shift) %>%
               full_join(adjustments) %>%
@@ -387,11 +390,9 @@ reactive_new <- reactive({
                 value = value * slope,
                 value = value * curvature,
                 value = round(value * adjustment_vector)
-              ) %>%
-              ungroup()|>
-              select(year, value, industry)|>
-              as_tibble()
-  )
+              ) |>
+              select(year, value, industry)
+            )
 })
 
 # end of ridiculously long function---------------
@@ -476,7 +477,7 @@ plotly::renderPlotly({
 
 ```{r}
 renderDT({
-  DT::datatable(reactive_notes(), colnames = NULL, rownames = FALSE, options(dom="t"))
+  DT::datatable(reactive_notes(), rownames = FALSE, colnames = NULL, options(dom="t"))
 })
 ```
 
