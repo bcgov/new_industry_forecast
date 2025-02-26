@@ -7,14 +7,13 @@ library(here)
 library(readxl)
 library(janitor)
 library(scales)
-library(wrapR)
 library(assertthat)
 library(ggpmisc)
 library(patchwork)
 library(ggpp)
 #constants------------
-historic_start <- 2010 #post recession
-historic_end <- 2019 #pre covid
+historic_start <- 2014
+historic_end <- 2024
 # functions-----------------
 read_pivot_clean <- function(pattern, skip) {
   read_excel(here("data","current", list.files(here("data","current"), pattern = pattern)), skip = skip) %>%
@@ -119,7 +118,11 @@ unnest_cagrs <- function(tbbl, nest, series){
     pivot_wider(names_from = period, values_from = cagr, names_prefix = "CAGR: ")
 }
 # read in the data--------------------------
-employment <- read_excel(here("data","current","Employment for 64 LMO Industries 2000-2023.xlsx"), skip = 2, sheet = "British Columbia")%>%
+employment <- read_excel(here("data",
+                              "current",
+                              list.files(here("data", "current"), pattern = "Employment for 64 LMO Industries")),
+                         skip = 3,
+                         sheet = "British Columbia")%>%
   pivot_longer(cols=-contains("Lmo"), names_to="year", values_to = "value")%>%
   rename(industry=contains("industry"),
          code=contains("code"))%>%
@@ -128,7 +131,8 @@ employment <- read_excel(here("data","current","Employment for 64 LMO Industries
   nest()%>%
   rename(employment=data)
 #old forecasts have different industry codes so we drop the codes, join with employment by industry name to get new codes.----------
-old_forecast <- read_csv(here("data","current","LMO_2023_employment.csv"), skip = 3)|>
+old_forecast <- read_excel(here("data",
+                              "current","last_year_from_stokes.xlsx"), skip = 3)|>
   janitor::remove_empty("cols")|>
   filter(`Geographic Area`=="British Columbia",
          NOC=="#T",
@@ -160,7 +164,7 @@ forecast_already <- read_csv(here("out","current", "forecasts.csv")) %>%
   group_by(industry, year) %>%
   summarize(value = last(value))# only the most recent forecast (industry already in "code: name" format)
 #Forecasts must equal the constraint (first 5 years)-----------------
-constraint <- read_csv(here("data","current", "constraint.csv"))%>%
+constraint <- read_excel(here("data","current", "constraint.xlsx"))%>%
   rename(constraint=employment)
 forecast_totals <- forecast_already%>%
   group_by(year)%>%

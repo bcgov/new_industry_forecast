@@ -8,7 +8,7 @@ runtime: shiny
 resource_files:
 - "data/current/Employment for 64 LMO Industries 2000-2024.xlsx"
 - data/current/sim_fcasts.csv
-- data/current/lmo_employment_previous.xlsx
+- data/current/last_year_from_stokes.xlsx
 - data/current/constraint.csv
 - "data/current/2024E_internal industry forecast_group notes - 2024 03 05.xlsx"
 - data/current/constraint.xlsx
@@ -92,7 +92,7 @@ employment <- read_excel(here("data","current","Employment for 64 LMO Industries
 sim_fcast <- read_csv(here("data","current","sim_fcasts.csv"))|>
   rename(value=mean_fcast)
 
-old <- readxl::read_excel(here("data","current","lmo_employment_previous.xlsx"), skip = 3)|>
+old <- readxl::read_excel(here("data","current","last_year_from_stokes.xlsx"), skip = 3)|>
   janitor::remove_constant()|>
   pivot_longer(cols=-Industry, names_to = "year")%>%
   mutate(year=as.numeric(year))%>%
