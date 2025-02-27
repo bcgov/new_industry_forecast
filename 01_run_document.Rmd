@@ -47,28 +47,28 @@ colors <- c("Employment" = "black", "Last Year" = "purple", "New Forecast" = "or
 
 # if forecast table doesn't exist create it.--------------------
 if (!file.exists(here("out","current", "forecasts.csv"))) {
-  tibble(year= numeric(), value=numeric(), industry = character()) %>%
+  tibble(year= numeric(), value=numeric(), industry = character()) |>
     write_csv(here("out","current", "forecasts.csv"))
 }
 
 # functions------------------
 get_cagr <- function(tbbl, start_year, end_year) {
-  start_val <- filter(tbbl, year == start_year) %>%
+  start_val <- filter(tbbl, year == start_year) |>
     pull(value)
-  end_val <- filter(tbbl, year == end_year) %>%
+  end_val <- filter(tbbl, year == end_year) |>
     pull(value)
   c(start_year, end_year, scales::percent((end_val / start_val)^(1 / (end_year - start_year)) - 1, accuracy = .1))
 }
 
 make_forecast <- function(tbbl){
-  tbbl <- tbbl%>%
+  tbbl <- tbbl|>
     mutate(year=as.numeric(year))
-  last_value <- tbbl%>%
-    filter(year==max(year))%>%
+  last_value <- tbbl|>
+    filter(year==max(year))|>
     pull(value)
-  start_val <- filter(tbbl, year == historic_start) %>%
+  start_val <- filter(tbbl, year == historic_start) |>
     pull(value)
-  end_val <- filter(tbbl, year == historic_end) %>%
+  end_val <- filter(tbbl, year == historic_end) |>
     pull(value)
   historic_cagr <- (end_val / start_val)^(1 / (historic_end - historic_start))
   multiply_last_value_by <- historic_cagr^(1:11)
@@ -80,13 +80,13 @@ make_forecast <- function(tbbl){
 # this file is treated as having THE correct industry names and codes.
 employment <- read_excel(here("data","current","Employment for 64 LMO Industries 2000-2024.xlsx"), 
                          skip = 2, 
-                         sheet = "British Columbia")%>%
-  pivot_longer(cols=starts_with("2"), names_to="year", values_to = "value")%>%
+                         sheet = "British Columbia")|>
+  pivot_longer(cols=starts_with("2"), names_to="year", values_to = "value")|>
   rename(industry=contains("industry"),
-         code=contains("code"))%>%
-  filter(str_detect(code, "ind"))%>%
-  group_by(code, industry)%>%
-  nest()%>%
+         code=contains("code"))|>
+  filter(str_detect(code, "ind"))|>
+  group_by(code, industry)|>
+  nest()|>
   rename(employment=data)
 
 sim_fcast <- read_csv(here("data","current","sim_fcasts.csv"))|>
@@ -94,88 +94,95 @@ sim_fcast <- read_csv(here("data","current","sim_fcasts.csv"))|>
 
 old <- readxl::read_excel(here("data","current","last_year_from_stokes.xlsx"), skip = 3)|>
   janitor::remove_constant()|>
-  pivot_longer(cols=-Industry, names_to = "year")%>%
-  mutate(year=as.numeric(year))%>%
-  clean_names()%>%
-  group_by(industry)%>%
-  nest()%>%
-  rename(old_forecast=data)
+  pivot_longer(cols=-Industry, names_to = "year")|>
+  mutate(year=as.numeric(year))|>
+  clean_names()
 
-#anti_join(employment, old)|>view()
-#anti_join(old, employment)|>view()
-
-old_forecast <- old%>%
-  stringdist_right_join(employment)%>% #stoke f'd up industry names: manually check the fuzzy join
-  ungroup()|>
-  select(-employment, -industry.x)%>%
-  rename(industry=industry.y)%>%
-  filter(!is.na(code))%>%
-  unnest(old_forecast)%>%
-  unite(industry, code, industry, sep=": ")%>%
-  mutate(year=as.numeric(year))
- 
-forecast_years <- old_forecast %>% # the years to be forecast
-  distinct(year) %>%
+forecast_years <- old |> # the years to be forecast
+  distinct(year) |>
   pull(year) + 1
 
-driver_data <- read_excel(here("data","current","driver_2025_partial.xlsx"))%>%  
-  select(-contains("code"))%>%
-  rename(industry=`Ind Des`)%>%
-  pivot_longer(cols=-industry, names_to = "year", values_to = "value")%>%
-  group_by(industry)%>%
-  nest()%>%
-  rename(driver_data=data)%>%
-  stringdist_right_join(employment)%>% #don't trust industry names: manually check the fuzzy join
+driver_data <- read_excel(here("data","current","driver_2025_partial.xlsx"))|>  
+  select(-contains("code"))|>
+  rename(industry=`Ind Des`)|>
+  pivot_longer(cols=-industry, names_to = "year", values_to = "value")|>
+  group_by(industry)|>
+  nest()|>
+  rename(driver_data=data)|>
+  stringdist_right_join(employment)|> #don't trust industry names: manually check the fuzzy join
   ungroup()|>
-  select(-employment, -industry.x)%>%
-  rename(industry=industry.y)%>%
-  unnest(driver_data)%>%
-  unite(industry, code, industry, sep=": ")%>%
+  select(-employment, -industry.x)|>
+  rename(industry=industry.y)|>
+  unnest(driver_data)|>
+  unite(industry, code, industry, sep=": ")|>
   mutate(year=as.numeric(year),
-         value=value*1000 #driver data was in 1000's this year
+         value=value*1000 #driver data in 1000's
          ) 
 
-employment <- employment%>%
-  unnest(employment)%>%
-  unite(industry, code, industry, sep=": ")%>%
-  mutate(year=as.numeric(year))
-
-forecast_already <- read_csv(here("out","current", "forecasts.csv"))%>%
-  group_by(industry, year) %>%
+forecast_already <- read_csv(here("out","current", "forecasts.csv"))|>
+  group_by(industry, year) |>
   summarize(value = last(value))# only the most recent forecast if multiple
 
 constraint <- read_xlsx(here("data","current", "constraint.xlsx"))|>
   filter(year %in% forecast_years[1:5])|>
   select(year, employment)
 
+notes <- read_excel(here("data","current","2024E_internal industry forecast_group notes - 2024 03 05.xlsx"))|>
+  select(industry=contains("name"), starts_with("2"))|>
+  stringdist_right_join(employment)|>
+  select(starts_with("2"), code, industry=industry.y)|>
+  unite(industry, c(code, industry), sep=": ")|>
+  pivot_longer(cols=starts_with("2"))|>
+  mutate(value=str_replace_all(value, "-"," "),
+         name=str_remove_all(name, "- notes on forecast"))
+
 # preliminary calculations-------------------
+
+old_forecast <- old|>
+  group_by(industry)|>
+  nest()|>
+  rename(old_forecast=data)|>
+  stringdist_right_join(employment)|> #stoke f'd up industry names: manually check the fuzzy join
+  ungroup()|>
+  select(-employment, -industry.x)|>
+  rename(industry=industry.y)|>
+  filter(!is.na(code))|>
+  unnest(old_forecast)|>
+  unite(industry, code, industry, sep=": ")|>
+  mutate(year=as.numeric(year))
+ 
+employment <- employment|>
+  unnest(employment)|>
+  unite(industry, code, industry, sep=": ")|>
+  mutate(year=as.numeric(year))
+
 industries <- unique(employment$industry) # for the drop down list.
 default_industry <- industries[!industries %in% unique(forecast_already$industry)][1] #make the default choice the next industry.
-industry_share_last_year <- employment %>% # for keeping track of how much has been forecast relative to constraint.
-  filter(year == max(year), industry != "ind00-ALL") %>%
+industry_share_last_year <- employment |> # for keeping track of how much has been forecast relative to constraint.
+  filter(year == max(year), industry != "ind00-ALL") |>
   mutate(
     industry_proportion = value / sum(value),
     industry = industry
   )
 if (nrow(forecast_already > 0)) {
-  forecasted_industries <- forecast_already %>%
-    select(industry) %>%
+  forecasted_industries <- forecast_already |>
+    select(industry) |>
     distinct() #which industries have we forecast already?
-  `Percent Forecasted` <- inner_join(industry_share_last_year, forecasted_industries, by = "industry") %>%
-    summarize(industry_proportion = sum(industry_proportion)) %>%
-    mutate(industry_proportion = scales::percent(industry_proportion, accuracy = .01)) %>%
+  `Percent Forecasted` <- inner_join(industry_share_last_year, forecasted_industries, by = "industry") |>
+    summarize(industry_proportion = sum(industry_proportion)) |>
+    mutate(industry_proportion = scales::percent(industry_proportion, accuracy = .01)) |>
     pull() # what share of total employment do the forecast industries make?
-  forecasted_by_year <- forecast_already %>%
-    filter(year < mean(year)) %>% # only for the first 5 years of forecast
-    group_by(year) %>%
-    summarize(total = sum(value)) %>% #total employment forecast already.
-    inner_join(constraint, by = "year") %>% # the budget constraint (top line employment)
+  forecasted_by_year <- forecast_already |>
+    filter(year < mean(year)) |> # only for the first 5 years of forecast
+    group_by(year) |>
+    summarize(total = sum(value)) |> #total employment forecast already.
+    inner_join(constraint, by = "year") |> # the budget constraint (top line employment)
     mutate(
       `#` = nrow(forecasted_industries),
       `%` = `Percent Forecasted`,
       `Forecasts / Constraint` = scales::percent(total / employment, accuracy = .01),
       too=if_else(`Forecasts / Constraint`>`%`,"high","low")
-    ) %>%
+    ) |>
     select(-total, -employment)
 } else {
   forecasted_by_year <- tibble(
@@ -186,18 +193,6 @@ if (nrow(forecast_already > 0)) {
     too = rep("early", 5)
   )
 }
-#get notes from last year-----------------
-
-notes <- read_excel(here("data","current","2024E_internal industry forecast_group notes - 2024 03 05.xlsx"))%>%
-  unite(industry, contains("code"), contains("industry"), sep=": ")|>
-  select(industry, starts_with("2"))%>%
-  stringdist_right_join(employment|>select(industry)|>distinct())|>
-  select(starts_with("2"), industry.y)%>%
-  rename(industry=industry.y)|>
-  pivot_longer(cols=starts_with("2"))%>%
-  mutate(value=str_replace_all(value, "-"," "),
-         name=str_remove_all(name, "- notes on forecast"))
-
 ```
 
 ## Inputs {.sidebar}
@@ -292,12 +287,12 @@ observeEvent(input$reset, {
 # reactive elements------------------------
 
 reactive_driver <- reactive({
-  driver_data %>%
+  driver_data |>
     filter(industry == input$industry)
 })
 
 reactive_employment <- reactive({
-  employment %>%
+  employment |>
     filter(industry == input$industry)
 })
 
@@ -306,7 +301,7 @@ reactive_employment_cagr <- reactive({
 })
 
 reactive_old <- reactive({
-  old_forecast %>%
+  old_forecast |>
     filter(industry == input$industry)
 })
 
@@ -315,8 +310,44 @@ reactive_CAGR_forecast <- reactive({
 })
 
 reactive_sim_forecast <- reactive({
-  sim_fcast %>%
+  sim_fcast |>
     filter(industry == input$industry)
+})
+
+adjustment_vector <- reactive({c(input$first, input$second, input$third, 
+                                 input$fourth, input$fifth, input$sixth, 
+                                 input$seventh, input$eighth, input$ninth, 
+                                 input$tenth, input$eleventh)
+})
+
+adjustments <- reactive({
+  tibble(
+    year = forecast_years, 
+    slope = input$slope^(forecast_years - min(forecast_years)),
+    curvature = case_when(
+      input$curvature == 0 ~ 1,
+      input$curvature > 0 ~ (1 - (abs(forecast_years - mean(forecast_years)) / (101 - abs(input$curvature)))^2),
+      input$curvature < 0 ~ ((abs(forecast_years - mean(forecast_years)) / (101 - abs(input$curvature)))^2 + 1)
+      ),
+    adjustment_vector = adjustment_vector()
+  )
+})
+
+reactive_new <- reactive({
+  switch(input$fcast,
+    "Last Year" = reactive_old() |> mutate(year = year + 1), #push last years forecast ahead a year
+    "Driver" = reactive_driver(),
+    "CAGR Forecast" = reactive_CAGR_forecast(),
+    "Sim Forecast" = reactive_sim_forecast()
+  )|>
+    mutate(value = value * input$shift) |>
+    full_join(adjustments(), by = "year") |>
+    mutate(
+      value = value * slope,
+      value = value * curvature,
+      value = round(value * adjustment_vector)
+    ) |>
+    select(year, value, industry)
 })
 
 reactive_old_cagr <- reactive({
@@ -328,53 +359,19 @@ reactive_old_cagr <- reactive({
   temp
 })
 
-
-reactive_new <- reactive({
-  adjustment_vector <- c(input$first, input$second, input$third, input$fourth, input$fifth, input$sixth, 
-                         input$seventh, input$eighth, input$ninth, input$tenth, input$eleventh)
-  
-  adjustments <- tibble(
-    year = forecast_years, 
-    slope = input$slope^(forecast_years - min(forecast_years)),
-    curvature = case_when(
-      input$curvature == 0 ~ 1,
-      input$curvature > 0 ~ (1 - (abs(forecast_years - mean(forecast_years)) / (101 - abs(input$curvature)))^2),
-      input$curvature < 0 ~ ((abs(forecast_years - mean(forecast_years)) / (101 - abs(input$curvature)))^2 + 1)
-      ),
-    adjustment_vector = adjustment_vector
-  )
-
-  base_data <- switch(input$fcast,
-    "Last Year" = reactive_old() %>% mutate(year = year + 1),
-    "Driver" = reactive_driver(),
-    "CAGR Forecast" = reactive_CAGR_forecast(),
-    "Sim Forecast" = reactive_sim_forecast()
-  )
-
-  base_data %>%
-    mutate(value = value * input$shift) %>%
-    full_join(adjustments, by = "year") %>%
-    mutate(
-      value = value * slope,
-      value = value * curvature,
-      value = round(value * adjustment_vector)
-    ) %>%
-    select(year, value, industry)
-})
-
 reactive_new_cagr <- reactive({
   ffy <- get_cagr(reactive_new(), min(forecast_years), mean(forecast_years))
   sfy <- get_cagr(reactive_new(), mean(forecast_years), max(forecast_years))
   ty <- get_cagr(reactive_new(), min(forecast_years), max(forecast_years))
   temp <- t(bind_cols(ffy, sfy, ty))
   colnames(temp) <- c("Start", "End", "CAGR")
-  temp %>%
-    as_tibble() %>%
+  temp |>
+    as_tibble() |>
     select(CAGR, Start, End)
 })
 
 reactive_already <- reactive({
-  forecast_already %>%
+  forecast_already |>
     filter(industry == input$industry)
 })
 
@@ -390,7 +387,7 @@ observeEvent(input$save, {
 })
 
 reactive_notes <- reactive({
-  notes %>%
+  notes|>
     filter(industry == input$industry)|>
     select(-industry)
 })
@@ -430,7 +427,7 @@ plotly::renderPlotly({
       expand_limits(y = 1)
   }
   
-  ggplotly(plt)%>%
+  ggplotly(plt)|>
   layout(legend = list(
       orientation = "h"
     )
