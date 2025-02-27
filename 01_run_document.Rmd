@@ -240,54 +240,54 @@ checkboxInput("origin", "Are you Sazid? (should y axis include the origin)", val
 ```{r}
 actionButton("save", "Write forecast to disk") #disabled for shinyapps.io
 
-sliderInput("adjust_first", paste("Adjust ", forecast_years[1]),
+sliderInput("first", paste("Adjust ", forecast_years[1]),
   min = .9, max = 1.2,   value = 1, step = .05
 )
-sliderInput("adjust_second", paste("Adjust ", forecast_years[2]),
+sliderInput("second", paste("Adjust ", forecast_years[2]),
   min = .9, max = 1.2,   value = 1, step = .05
 )
-sliderInput("adjust_third", paste("Adjust ", forecast_years[3]),
+sliderInput("third", paste("Adjust ", forecast_years[3]),
   min = .9, max = 1.2,   value = 1, step = .05
 )
-sliderInput("adjust_fourth", paste("Adjust ", forecast_years[4]),
+sliderInput("fourth", paste("Adjust ", forecast_years[4]),
   min = .9, max = 1.2,   value = 1, step = .05
 )
-sliderInput("adjust_fifth", paste("Adjust ", forecast_years[5]),
+sliderInput("fifth", paste("Adjust ", forecast_years[5]),
   min = .9, max = 1.2, value = 1, step = .05
 )
-sliderInput("adjust_sixth", paste("Adjust ", forecast_years[6]),
+sliderInput("sixth", paste("Adjust ", forecast_years[6]),
   min = .9, max = 1.2,   value = 1, step = .05
 )
-sliderInput("adjust_seventh", paste("Adjust ", forecast_years[7]),
+sliderInput("seventh", paste("Adjust ", forecast_years[7]),
   min = .9, max = 1.2,   value = 1, step = .05
 )
-sliderInput("adjust_eighth", paste("Adjust ", forecast_years[8]),
+sliderInput("eighth", paste("Adjust ", forecast_years[8]),
   min = .9, max = 1.2,   value = 1, step = .001
 )
-sliderInput("adjust_ninth", paste("Adjust ", forecast_years[9]),
+sliderInput("ninth", paste("Adjust ", forecast_years[9]),
   min = .9, max = 1.2,   value = 1, step = .05
 )
-sliderInput("adjust_tenth", paste("Adjust ", forecast_years[10]),
+sliderInput("tenth", paste("Adjust ", forecast_years[10]),
   min = .9, max = 1.2,   value = 1, step = .05
 )
-sliderInput("adjust_eleventh", paste("Adjust ", forecast_years[11]),
+sliderInput("eleventh", paste("Adjust ", forecast_years[11]),
   min = .9, max = 1.2,   value = 1, step = .05
 )
 observeEvent(input$reset, {
   updateSliderInput(inputId = "shift", value = 1)
   updateSliderInput(inputId = "slope", value = 1)
   updateNumericInput(inputId = "curvature", value = 0)
-  updateSliderInput(inputId = "adjust_first", value = 1)
-  updateSliderInput(inputId = "adjust_second", value = 1)
-  updateSliderInput(inputId = "adjust_third", value = 1)
-  updateSliderInput(inputId = "adjust_fourth", value = 1)
-  updateSliderInput(inputId = "adjust_fifth", value = 1)
-  updateSliderInput(inputId = "adjust_sixth", value = 1)
-  updateSliderInput(inputId = "adjust_seventh", value = 1)
-  updateSliderInput(inputId = "adjust_eighth", value = 1)
-  updateSliderInput(inputId = "adjust_ninth", value = 1)
-  updateSliderInput(inputId = "adjust_tenth", value = 1)
-  updateSliderInput(inputId = "adjust_eleventh", value = 1)
+  updateSliderInput(inputId = "first", value = 1)
+  updateSliderInput(inputId = "second", value = 1)
+  updateSliderInput(inputId = "third", value = 1)
+  updateSliderInput(inputId = "fourth", value = 1)
+  updateSliderInput(inputId = "fifth", value = 1)
+  updateSliderInput(inputId = "sixth", value = 1)
+  updateSliderInput(inputId = "seventh", value = 1)
+  updateSliderInput(inputId = "eighth", value = 1)
+  updateSliderInput(inputId = "ninth", value = 1)
+  updateSliderInput(inputId = "tenth", value = 1)
+  updateSliderInput(inputId = "eleventh", value = 1)
 })
 # reactive elements------------------------
 
@@ -328,70 +328,39 @@ reactive_old_cagr <- reactive({
   temp
 })
 
-#my most terrible function ever------------------
 
 reactive_new <- reactive({
-  adjustment_vector <- c(
-    input$adjust_first,
-    input$adjust_second,
-    input$adjust_third,
-    input$adjust_fourth,
-    input$adjust_fifth,
-    input$adjust_sixth,
-    input$adjust_seventh,
-    input$adjust_eighth,
-    input$adjust_ninth,
-    input$adjust_tenth,
-    input$adjust_eleventh
-  )
-  adjustments <- tibble(year = forecast_years, 
-                        slope = input$slope^(forecast_years - min(forecast_years)),
-                        curvature =  case_when(input$curvature==0 ~ 1,
-                                               input$curvature>0 ~ (1-(abs(forecast_years-mean(forecast_years))/(101-abs(input$curvature)))^2),
-                                               input$curvature<0 ~ ((abs(forecast_years-mean(forecast_years))/(101-abs(input$curvature)))^2+1)),
-                        adjustment_vector = adjustment_vector)
+  adjustment_vector <- c(input$first, input$second, input$third, input$fourth, input$fifth, input$sixth, 
+                         input$seventh, input$eighth, input$ninth, input$tenth, input$eleventh)
   
-  case_when(input$fcast=="Last Year" ~ reactive_old() %>%
-              mutate(year = year + 1) %>%
-              mutate(value = value * input$shift) %>%
-              full_join(adjustments) %>%
-              mutate(
-                value = value * slope,
-                value = value * curvature,
-                value = round(value * adjustment_vector)
-              ) %>%
-              select(year, value, industry),
-            input$fcast=="Driver" ~ reactive_driver()%>%
-              mutate(value = value * input$shift) %>%
-              full_join(adjustments) %>%
-              mutate(
-                value = value * slope,
-                value = value * curvature,
-                value = round(value * adjustment_vector)
-              ) %>%
-              select(year, value, industry),
-            input$fcast=="CAGR Forecast"~ reactive_CAGR_forecast()%>%
-              mutate(value = value * input$shift) %>%
-              full_join(adjustments) %>%
-              mutate(
-                value = value * slope,
-                value = value * curvature,
-                value = round(value * adjustment_vector)
-              ) %>%
-              select(year, value, industry),
-            input$fcast=="Sim Forecast"~ reactive_sim_forecast()%>%
-              mutate(value = value * input$shift) %>%
-              full_join(adjustments) %>%
-              mutate(
-                value = value * slope,
-                value = value * curvature,
-                value = round(value * adjustment_vector)
-              ) |>
-              select(year, value, industry)
-            )
-})
+  adjustments <- tibble(
+    year = forecast_years, 
+    slope = input$slope^(forecast_years - min(forecast_years)),
+    curvature = case_when(
+      input$curvature == 0 ~ 1,
+      input$curvature > 0 ~ (1 - (abs(forecast_years - mean(forecast_years)) / (101 - abs(input$curvature)))^2),
+      input$curvature < 0 ~ ((abs(forecast_years - mean(forecast_years)) / (101 - abs(input$curvature)))^2 + 1)
+      ),
+    adjustment_vector = adjustment_vector
+  )
 
-# end of ridiculously long function---------------
+  base_data <- switch(input$fcast,
+    "Last Year" = reactive_old() %>% mutate(year = year + 1),
+    "Driver" = reactive_driver(),
+    "CAGR Forecast" = reactive_CAGR_forecast(),
+    "Sim Forecast" = reactive_sim_forecast()
+  )
+
+  base_data %>%
+    mutate(value = value * input$shift) %>%
+    full_join(adjustments, by = "year") %>%
+    mutate(
+      value = value * slope,
+      value = value * curvature,
+      value = round(value * adjustment_vector)
+    ) %>%
+    select(year, value, industry)
+})
 
 reactive_new_cagr <- reactive({
   ffy <- get_cagr(reactive_new(), min(forecast_years), mean(forecast_years))
