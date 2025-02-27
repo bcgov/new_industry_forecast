@@ -140,10 +140,6 @@ employment <- employment%>%
   unite(industry, code, industry, sep=": ")%>%
   mutate(year=as.numeric(year))
 
-#' for some reason extra column added when writing to disk, and then appended
-#' to industry when read. The extract step below splits industry on the last
-#' comma... should fix this bug after forecasting done. 
-
 forecast_already <- read_csv(here("out","current", "forecasts.csv"))%>%
   group_by(industry, year) %>%
   summarize(value = last(value))# only the most recent forecast if multiple
