@@ -90,15 +90,15 @@ employment <- read_excel(here("data","current","Employment for 64 LMO Industries
   rename(employment=data)
 
 sim_fcast <- read_csv(here("data","current","sim_fcasts.csv"))|>
-  rename(value=mean_fcast)
+  rename(value=mean_fcast) #sim forecast based on employment file above... has correct names (in proportions)
 
-old <- readxl::read_excel(here("data","current","last_year_from_stokes.xlsx"), skip = 3)|>
+old_forecast_wrong_names <- readxl::read_excel(here("data","current","last_year_from_stokes.xlsx"), skip = 3)|>
   janitor::remove_constant()|>
   pivot_longer(cols=-Industry, names_to = "year")|>
   mutate(year=as.numeric(year))|>
   clean_names()
 
-forecast_years <- old |> # the years to be forecast
+forecast_years <- old_forecast_wrong_names|> # the years to be forecast
   distinct(year) |>
   pull(year) + 1
 
@@ -109,7 +109,7 @@ driver_data <- read_excel(here("data","current","driver_2025_partial.xlsx"))|>
   group_by(industry)|>
   nest()|>
   rename(driver_data=data)|>
-  stringdist_right_join(employment)|> #don't trust industry names: manually check the fuzzy join
+  stringdist_right_join(employment)|> #CHECK THE JOIN
   ungroup()|>
   select(-employment, -industry.x)|>
   rename(industry=industry.y)|>
@@ -123,13 +123,31 @@ forecast_already <- read_csv(here("out","current", "forecasts.csv"))|>
   group_by(industry, year) |>
   summarize(value = last(value))# only the most recent forecast if multiple
 
-constraint <- read_xlsx(here("data","current", "constraint.xlsx"))|>
+budget_constraint <- read_xlsx(here("data","current", "constraint.xlsx"))
+
+last_emp <- budget_constraint$employment[budget_constraint$year==max(budget_constraint$year)]
+first_emp <- budget_constraint$employment[budget_constraint$year==min(budget_constraint$year)]
+years_elaspsed <-max(budget_constraint$year)-min(budget_constraint$year) 
+budget_gf <- (last_emp/first_emp)^(1/years_elaspsed)
+
+extrapolated_constraint <- tibble(year=max(budget_constraint$year)+1:7, 
+                                  employment=last_emp*budget_gf^(year-max(budget_constraint$year)))
+
+budget_plus_extrapolation <- bind_rows(budget_constraint, extrapolated_constraint)
+
+#join budget_plus_extrapolation and sim proportions to form sim forecast
+
+sim_fcast <- inner_join(sim_fcast, budget_plus_extrapolation)|>
+  mutate(value=value*employment)|>
+  select(-employment)
+
+constraint <- budget_plus_extrapolation|>
   filter(year %in% forecast_years[1:5])|>
   select(year, employment)
 
 notes <- read_excel(here("data","current","2024E_internal industry forecast_group notes - 2024 03 05.xlsx"))|>
   select(industry=contains("name"), starts_with("2"))|>
-  stringdist_right_join(employment)|>
+  stringdist_right_join(employment)|> #CHECK THE JOIN
   select(starts_with("2"), code, industry=industry.y)|>
   unite(industry, c(code, industry), sep=": ")|>
   pivot_longer(cols=starts_with("2"))|>
@@ -138,11 +156,11 @@ notes <- read_excel(here("data","current","2024E_internal industry forecast_grou
 
 # preliminary calculations-------------------
 
-old_forecast <- old|>
+old_forecast <- old_forecast_wrong_names|>
   group_by(industry)|>
   nest()|>
   rename(old_forecast=data)|>
-  stringdist_right_join(employment)|> #stoke f'd up industry names: manually check the fuzzy join
+  stringdist_right_join(employment)|> #CHECK THE JOIN
   ungroup()|>
   select(-employment, -industry.x)|>
   rename(industry=industry.y)|>
@@ -157,13 +175,15 @@ employment <- employment|>
   mutate(year=as.numeric(year))
 
 industries <- unique(employment$industry) # for the drop down list.
-default_industry <- industries[!industries %in% unique(forecast_already$industry)][1] #make the default choice the next industry.
-industry_share_last_year <- employment |> # for keeping track of how much has been forecast relative to constraint.
+
+default_industry <- industries[!industries %in% unique(forecast_already$industry)][1] 
+
+industry_share_last_year <- employment |> # for keeping track of how much has been forecast
   filter(year == max(year), industry != "ind00-ALL") |>
-  mutate(
-    industry_proportion = value / sum(value),
-    industry = industry
-  )
+  mutate(industry_proportion = value / sum(value), 
+         industry = industry
+         )
+
 if (nrow(forecast_already > 0)) {
   forecasted_industries <- forecast_already |>
     select(industry) |>
