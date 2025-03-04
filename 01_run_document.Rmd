@@ -4,6 +4,7 @@ output:
   flexdashboard::flex_dashboard:
     orientation: rows
     vertical_layout: fill
+    source_code: https://github.com/bcgov/new_industry_forecast
 runtime: shiny
 resource_files:
 - "data/current/Employment for 64 LMO Industries 2000-2024.xlsx"
@@ -24,10 +25,10 @@ resource_files:
 
 ```{r setup, include=FALSE}
 #' The main challenge here is that data is being drawn in from multiple sources where
-#' it is not certain that industry names and codes are consistent between sources... so we use 
+#' it is not certain that industry names are consistent between sources... so we use 
 #' fuzzyjoins, which necessitates manually verifying that the joins were done correctly.  The
 #' file prepared for Stokes is viewed to be the "correct" naming and numbering,
-#' and then we impose this naming on last year's forecasts and the driver data to ensure consistency.
+#' and then we impose this naming on last year's forecasts, notes and driver data to ensure consistency.
 
 # libraries---------------------
 library(flexdashboard)
@@ -53,32 +54,31 @@ if (!file.exists(here("out","current", "forecasts.csv"))) {
 
 # functions------------------
 get_cagr <- function(tbbl, start_year, end_year) {
-  start_val <- filter(tbbl, year == start_year) |>
-    pull(value)
-  end_val <- filter(tbbl, year == end_year) |>
-    pull(value)
-  c(start_year, end_year, scales::percent((end_val / start_val)^(1 / (end_year - start_year)) - 1, accuracy = .1))
+  start_val <- tbbl$value[tbbl$year==start_year]
+  end_val <- tbbl$value[tbbl$year==end_year]
+  c(start_year, 
+    end_year, 
+    scales::percent((end_val / start_val)^(1 / (end_year - start_year)) - 1, 
+                    accuracy = .1))
 }
 
 make_forecast <- function(tbbl){
   tbbl <- tbbl|>
     mutate(year=as.numeric(year))
-  last_value <- tbbl|>
-    filter(year==max(year))|>
-    pull(value)
-  start_val <- filter(tbbl, year == historic_start) |>
-    pull(value)
-  end_val <- filter(tbbl, year == historic_end) |>
-    pull(value)
+  last_value <- tbbl$value[tbbl$year==max(tbbl$year)]
+  start_val <- tbbl$value[tbbl$year==historic_start]
+  end_val <- tbbl$value[tbbl$year==historic_end]
   historic_cagr <- (end_val / start_val)^(1 / (historic_end - historic_start))
   multiply_last_value_by <- historic_cagr^(1:11)
   year <- (max(tbbl$year)+1):(max(tbbl$year)+11)
   value <- last_value*multiply_last_value_by
   tibble(industry=input$industry, year=year, value=value)
 }
-# read in the data--------------------------
-# this file is treated as having THE correct industry names and codes.
-employment <- read_excel(here("data","current","Employment for 64 LMO Industries 2000-2024.xlsx"), 
+
+# Employment data: THE correct industry names and codes.
+employment <- read_excel(here("data",
+                              "current",
+                              "Employment for 64 LMO Industries 2000-2024.xlsx"), 
                          skip = 2, 
                          sheet = "British Columbia")|>
   pivot_longer(cols=starts_with("2"), names_to="year", values_to = "value")|>
@@ -89,27 +89,69 @@ employment <- read_excel(here("data","current","Employment for 64 LMO Industries
   nest()|>
   rename(employment=data)
 
-sim_fcast <- read_csv(here("data","current","sim_fcasts.csv"))|>
-  rename(value=mean_fcast) #sim forecast based on employment file above... has correct names (in proportions)
-
-old_forecast_wrong_names <- readxl::read_excel(here("data","current","last_year_from_stokes.xlsx"), skip = 3)|>
+#read in the files with (potentially) incorrect names
+old_forecast_wrong_names <- readxl::read_excel(here("data",
+                                                    "current",
+                                                    "old_forecast_wrong_names.xlsx"), 
+                                               skip = 3)|>
   janitor::remove_constant()|>
   pivot_longer(cols=-Industry, names_to = "year")|>
   mutate(year=as.numeric(year))|>
-  clean_names()
+  clean_names()|>
+  group_by(industry)|>
+  nest()|>
+  rename(old_forecast=data)|>
+  stringdist_right_join(employment) 
 
-forecast_years <- old_forecast_wrong_names|> # the years to be forecast
-  distinct(year) |>
-  pull(year) + 1
+#names (if any) should refer to same industry
+old_forecast_wrong_names[old_forecast_wrong_names$industry.x!=old_forecast_wrong_names$industry.y,] 
 
-driver_data <- read_excel(here("data","current","driver_2025_partial.xlsx"))|>  
+driver_data_wrong_names <- read_excel(here("data",
+                                           "current",
+                                           "driver_2025_partial.xlsx"))|>  
   select(-contains("code"))|>
   rename(industry=`Ind Des`)|>
   pivot_longer(cols=-industry, names_to = "year", values_to = "value")|>
   group_by(industry)|>
   nest()|>
   rename(driver_data=data)|>
-  stringdist_right_join(employment)|> #CHECK THE JOIN
+  stringdist_join(employment)
+
+#names (if any) should refer to the same industry
+driver_data_wrong_names[driver_data_wrong_names$industry.x!=driver_data_wrong_names$industry.y,] 
+
+notes_wrong_names <- read_excel(here("data",
+                                     "current",
+                                     "2024E_internal industry forecast_group notes - 2024 03 05.xlsx"))|>
+  select(industry=contains("name"), starts_with("2"))|>
+  stringdist_right_join(employment)
+
+#names (if any) should refer to the same industry
+notes_wrong_names[notes_wrong_names$industry.x!=notes_wrong_names$industry.y,] 
+
+#load files with correct names
+
+forecast_already <- read_csv(here("out","current", "forecasts.csv"))|> #names come from this app
+  group_by(industry, year) |>
+  summarize(value = last(value))# only the most recent forecast (if multiple).
+
+budget_constraint <- read_xlsx(here("data","current", "constraint.xlsx")) #no names to be wrong
+
+sim_props <- read_csv(here("data","current","sim_fcasts.csv"))|> #names come from the same employment file.
+  rename(value=mean_fcast)
+
+# clean up after fuzzyjoins
+
+old_forecast <- old_forecast_wrong_names|>
+  ungroup()|>
+  select(-employment, -industry.x)|>
+  rename(industry=industry.y)|>
+  filter(!is.na(code))|>
+  unnest(old_forecast)|>
+  unite(industry, code, industry, sep=": ")|>
+  mutate(year=as.numeric(year))
+
+driver_data <- driver_data_wrong_names|> 
   ungroup()|>
   select(-employment, -industry.x)|>
   rename(industry=industry.y)|>
@@ -119,11 +161,16 @@ driver_data <- read_excel(here("data","current","driver_2025_partial.xlsx"))|>
          value=value*1000 #driver data in 1000's
          ) 
 
-forecast_already <- read_csv(here("out","current", "forecasts.csv"))|>
-  group_by(industry, year) |>
-  summarize(value = last(value))# only the most recent forecast if multiple
+notes <- notes_wrong_names|> 
+  select(starts_with("2"), code, industry=industry.y)|>
+  unite(industry, c(code, industry), sep=": ")|>
+  pivot_longer(cols=starts_with("2"))|>
+  mutate(value=str_replace_all(value, "-"," "),
+         name=str_remove_all(name, "- notes on forecast"))
 
-budget_constraint <- read_xlsx(here("data","current", "constraint.xlsx"))
+# preliminary calculations-------------------
+
+forecast_years <- old_forecast_wrong_names$old_forecast[[1]]$year+1
 
 last_emp <- budget_constraint$employment[budget_constraint$year==max(budget_constraint$year)]
 first_emp <- budget_constraint$employment[budget_constraint$year==min(budget_constraint$year)]
@@ -135,9 +182,8 @@ extrapolated_constraint <- tibble(year=max(budget_constraint$year)+1:7,
 
 budget_plus_extrapolation <- bind_rows(budget_constraint, extrapolated_constraint)
 
-#join budget_plus_extrapolation and sim proportions to form sim forecast
-
-sim_fcast <- inner_join(sim_fcast, budget_plus_extrapolation)|>
+sim_fcasts <- sim_props|> 
+  inner_join(budget_plus_extrapolation)|>
   mutate(value=value*employment)|>
   select(-employment)
 
@@ -145,30 +191,6 @@ constraint <- budget_plus_extrapolation|>
   filter(year %in% forecast_years[1:5])|>
   select(year, employment)
 
-notes <- read_excel(here("data","current","2024E_internal industry forecast_group notes - 2024 03 05.xlsx"))|>
-  select(industry=contains("name"), starts_with("2"))|>
-  stringdist_right_join(employment)|> #CHECK THE JOIN
-  select(starts_with("2"), code, industry=industry.y)|>
-  unite(industry, c(code, industry), sep=": ")|>
-  pivot_longer(cols=starts_with("2"))|>
-  mutate(value=str_replace_all(value, "-"," "),
-         name=str_remove_all(name, "- notes on forecast"))
-
-# preliminary calculations-------------------
-
-old_forecast <- old_forecast_wrong_names|>
-  group_by(industry)|>
-  nest()|>
-  rename(old_forecast=data)|>
-  stringdist_right_join(employment)|> #CHECK THE JOIN
-  ungroup()|>
-  select(-employment, -industry.x)|>
-  rename(industry=industry.y)|>
-  filter(!is.na(code))|>
-  unnest(old_forecast)|>
-  unite(industry, code, industry, sep=": ")|>
-  mutate(year=as.numeric(year))
- 
 employment <- employment|>
   unnest(employment)|>
   unite(industry, code, industry, sep=": ")|>
@@ -184,11 +206,11 @@ industry_share_last_year <- employment |> # for keeping track of how much has be
          industry = industry
          )
 
-if (nrow(forecast_already > 0)) {
+if (nrow(forecast_already) > 0) {
   forecasted_industries <- forecast_already |>
     select(industry) |>
     distinct() #which industries have we forecast already?
-  `Percent Forecasted` <- inner_join(industry_share_last_year, forecasted_industries, by = "industry") |>
+  percent_forecasted <- inner_join(industry_share_last_year, forecasted_industries, by = "industry") |>
     summarize(industry_proportion = sum(industry_proportion)) |>
     mutate(industry_proportion = scales::percent(industry_proportion, accuracy = .01)) |>
     pull() # what share of total employment do the forecast industries make?
@@ -199,7 +221,7 @@ if (nrow(forecast_already > 0)) {
     inner_join(constraint, by = "year") |> # the budget constraint (top line employment)
     mutate(
       `#` = nrow(forecasted_industries),
-      `%` = `Percent Forecasted`,
+      `%` = percent_forecasted,
       `Forecasts / Constraint` = scales::percent(total / employment, accuracy = .01),
       too=if_else(`Forecasts / Constraint`>`%`,"high","low")
     ) |>
@@ -330,7 +352,7 @@ reactive_CAGR_forecast <- reactive({
 })
 
 reactive_sim_forecast <- reactive({
-  sim_fcast |>
+  sim_fcasts |>
     filter(industry == input$industry)
 })
 
