@@ -9,7 +9,7 @@ runtime: shiny
 resource_files:
 - "data/current/Employment for 64 LMO Industries 2000-2024.xlsx"
 - data/current/sim_fcasts.csv
-- data/current/last_year_from_stokes.xlsx
+- data/current/old_forecast_wrong_names.xlsx
 - data/current/constraint.csv
 - "data/current/2024E_internal industry forecast_group notes - 2024 03 05.xlsx"
 - data/current/constraint.xlsx
@@ -273,42 +273,41 @@ sliderInput(
 checkboxInput("origin", "Are you Sazid? (should y axis include the origin)", value = FALSE)
 ```
 
-
 ```{r}
 actionButton("save", "Write forecast to disk") #disabled for shinyapps.io
 
 sliderInput("first", paste("Adjust ", forecast_years[1]),
-  min = .9, max = 1.2,   value = 1, step = .05
+  min = .9, max = 1.2,   value = 1, step = .01
 )
 sliderInput("second", paste("Adjust ", forecast_years[2]),
-  min = .9, max = 1.2,   value = 1, step = .05
+  min = .9, max = 1.2,   value = 1, step = .01
 )
 sliderInput("third", paste("Adjust ", forecast_years[3]),
-  min = .9, max = 1.2,   value = 1, step = .05
+  min = .9, max = 1.2,   value = 1, step = .01
 )
 sliderInput("fourth", paste("Adjust ", forecast_years[4]),
-  min = .9, max = 1.2,   value = 1, step = .05
+  min = .9, max = 1.2,   value = 1, step = .01
 )
 sliderInput("fifth", paste("Adjust ", forecast_years[5]),
-  min = .9, max = 1.2, value = 1, step = .05
+  min = .9, max = 1.2, value = 1, step = .01
 )
 sliderInput("sixth", paste("Adjust ", forecast_years[6]),
-  min = .9, max = 1.2,   value = 1, step = .05
+  min = .9, max = 1.2,   value = 1, step = .01
 )
 sliderInput("seventh", paste("Adjust ", forecast_years[7]),
-  min = .9, max = 1.2,   value = 1, step = .05
+  min = .9, max = 1.2,   value = 1, step = .01
 )
 sliderInput("eighth", paste("Adjust ", forecast_years[8]),
-  min = .9, max = 1.2,   value = 1, step = .001
+  min = .9, max = 1.2,   value = 1, step = .01
 )
 sliderInput("ninth", paste("Adjust ", forecast_years[9]),
-  min = .9, max = 1.2,   value = 1, step = .05
+  min = .9, max = 1.2,   value = 1, step = .01
 )
 sliderInput("tenth", paste("Adjust ", forecast_years[10]),
-  min = .9, max = 1.2,   value = 1, step = .05
+  min = .9, max = 1.2,   value = 1, step = .01
 )
 sliderInput("eleventh", paste("Adjust ", forecast_years[11]),
-  min = .9, max = 1.2,   value = 1, step = .05
+  min = .9, max = 1.2,   value = 1, step = .01
 )
 observeEvent(input$reset, {
   updateSliderInput(inputId = "shift", value = 1)
