@@ -254,7 +254,7 @@ selectInput(
   "fcast",
   "Select a forecast to modify",
   c("Last Year","Driver","CAGR Forecast","Sim Forecast"),
-  selected = "Last Year"
+  selected = "CAGR Forecast"
 )
 
 sliderInput("shift", "Shift up or down",
@@ -369,8 +369,8 @@ adjustments <- reactive({
     slope = input$slope^(forecast_years - min(forecast_years)),
     curvature = case_when(
       input$curvature == 0 ~ 1,
-      input$curvature > 0 ~ (1 - (abs(forecast_years - mean(forecast_years)) / (101 - abs(input$curvature)))^2),
-      input$curvature < 0 ~ ((abs(forecast_years - mean(forecast_years)) / (101 - abs(input$curvature)))^2 + 1)
+      input$curvature > 0 ~ (1 - (abs(forecast_years - mean(forecast_years)) / (100 - abs(input$curvature)))^2),
+      input$curvature < 0 ~ ((abs(forecast_years - mean(forecast_years)) / (100 - abs(input$curvature)))^2 + 1)
       ),
     adjustment_vector = adjustment_vector()
   )
