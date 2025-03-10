@@ -65,13 +65,12 @@ get_cagr <- function(tbbl, start_year, end_year) {
 make_forecast <- function(tbbl){
   tbbl <- tbbl|>
     mutate(year=as.numeric(year))
-  last_value <- tbbl$value[tbbl$year==max(tbbl$year)]
   start_val <- tbbl$value[tbbl$year==historic_start]
   end_val <- tbbl$value[tbbl$year==historic_end]
   historic_cagr <- (end_val / start_val)^(1 / (historic_end - historic_start))
-  multiply_last_value_by <- historic_cagr^(1:11)
+  grow_by <- historic_cagr^(1:11)
   year <- (max(tbbl$year)+1):(max(tbbl$year)+11)
-  value <- last_value*multiply_last_value_by
+  value <- end_val*grow_by
   tibble(industry=input$industry, year=year, value=value)
 }
 
@@ -90,6 +89,7 @@ employment <- read_excel(here("data",
   rename(employment=data)
 
 #read in the files with (potentially) incorrect names
+
 old_forecast_wrong_names <- readxl::read_excel(here("data",
                                                     "current",
                                                     "old_forecast_wrong_names.xlsx"), 
@@ -158,8 +158,10 @@ driver_data <- driver_data_wrong_names|>
   unnest(driver_data)|>
   unite(industry, code, industry, sep=": ")|>
   mutate(year=as.numeric(year),
-         value=value*1000 #driver data in 1000's
-         ) 
+         mean_value=mean(value, na.rm = TRUE),
+         value=if_else(mean_value<1000, value*1000, value) #if mean value < 1000 must be in 1000's
+         )|>
+  select(-mean_value)
 
 notes <- notes_wrong_names|> 
   select(starts_with("2"), code, industry=industry.y)|>
