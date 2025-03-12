@@ -41,72 +41,72 @@ get_cagr <- function(tbbl, start, end, series){
   tibble(start=start, end=end, cagr=cagr)
 }
 #creates a combination plot and tables-----------------------
-# make_plot <- function(tbbl, industry, old, last, raw, bend, continue){
-#   #the main plot
-#   plt <- ggplot()+
-#     geom_line(data=tbbl, mapping=aes(year,value, colour=series), lwd=1.5)+
-#     scale_y_continuous(labels=scales::comma)+
-#     labs(x="",y="Employment",colour="", title=industry)+
-#     theme_minimal(base_size = 15)
-#   #table for historical cagr
-#   old <- ggplot() +
-#     theme_void() +
-#     annotate(geom = "table",
-#              x = 1,
-#              y = 1,
-#              label = list(old))+
-#     labs(title="historical")
-#   # 3 cagr table for last year's forecast (which possibly doesnt exist)
-#   if(nrow(last)==0){
-#     last <- ggplot()+
-#       theme_void() +
-#       labs(title="No forecast last year")
-#   }else{
-#     last <- ggplot() +
-#       theme_void() +
-#       annotate(geom = "table",
-#                x = 1,
-#                y = 1,
-#                label = list(last))+
-#       labs(title="last year")
-#   }
-#   # 3 cagr table for this year's raw forecast
-#   raw <- ggplot() +
-#     theme_void() +
-#     annotate(geom = "table",
-#              x = 1,
-#              y = 1,
-#              label = list(raw))+
-#     labs(title="raw")
-#   # 3 cagr table for bend adjusted
-#   bend <- ggplot() +
-#     theme_void() +
-#     annotate(geom = "table",
-#              x = 1,
-#              y = 1,
-#              label = list(bend))+
-#     labs(title="bend")
-#   # 3 cagr table for continue adjusted
-#   continue <- ggplot() +
-#     theme_void() +
-#     annotate(geom = "table",
-#              x = 1,
-#              y = 1,
-#              label = list(continue))+
-#     labs(title="continue")
-#   #layout the plots (patchwork)
-#   plt/(old+last+raw+bend+continue)+
-#     plot_layout(heights = c(2,1))
-# }
-
 make_plot <- function(tbbl, industry, old, last, raw, bend, continue){
-  ggplot()+
-    geom_line(data=tbbl, mapping=aes(year,value, colour=series))+
-    scale_y_continuous(labels=scales::comma)+
-    labs(x=NULL,y="Employment",colour=NULL, title=industry)+
-    theme_minimal(base_size = 15)+
-    coord_cartesian(ylim = c(0, NA))
-}
+   #the main plot
+   plt <- ggplot()+
+     geom_line(data=tbbl, mapping=aes(year,value, colour=series), lwd=1.5)+
+     scale_y_continuous(labels=scales::comma)+
+     labs(x="",y="Employment",colour="", title=industry)+
+     theme_minimal(base_size = 15)
+#   table for historical cagr
+   old <- ggplot() +
+     theme_void() +
+     annotate(geom = "table",
+              x = 1,
+              y = 1,
+              label = list(old))+
+     labs(title="historical")
+#   # 3 cagr table for last year's forecast (which possibly doesnt exist)
+   if(nrow(last)==0){
+     last <- ggplot()+
+       theme_void() +
+       labs(title="No forecast last year")
+   }else{
+     last <- ggplot() +
+       theme_void() +
+       annotate(geom = "table",
+                x = 1,
+                y = 1,
+                label = list(last))+
+       labs(title="last year")
+   }
+   # 3 cagr table for this year's raw forecast
+   raw <- ggplot() +
+     theme_void() +
+     annotate(geom = "table",
+              x = 1,
+              y = 1,
+              label = list(raw))+
+     labs(title="raw")
+   # 3 cagr table for bend adjusted
+   bend <- ggplot() +
+     theme_void() +
+     annotate(geom = "table",
+              x = 1,
+              y = 1,
+              label = list(bend))+
+     labs(title="bend")
+   # 3 cagr table for continue adjusted
+   continue <- ggplot() +
+     theme_void() +
+     annotate(geom = "table",
+              x = 1,
+              y = 1,
+              label = list(continue))+
+     labs(title="continue")
+   #layout the plots (patchwork)
+   plt/(old+last+raw+bend+continue)+
+     plot_layout(heights = c(2,1))
+ }
+
+# make_plot <- function(tbbl, industry, old, last, raw, bend, continue){
+#   ggplot()+
+#     geom_line(data=tbbl, mapping=aes(year,value, colour=series))+
+#     scale_y_continuous(labels=scales::comma)+
+#     labs(x=NULL,y="Employment",colour=NULL, title=industry)+
+#     theme_minimal(base_size = 15)+
+#     coord_cartesian(ylim = c(0, NA))
+# }
 
 # unnests cagrs and makes wider.------------------
 unnest_cagrs <- function(tbbl, nest, series){
@@ -131,8 +131,8 @@ employment <- read_excel(here("data",
   nest()%>%
   rename(employment=data)
 #old forecasts have different industry codes so we drop the codes, join with employment by industry name to get new codes.----------
-old_forecast <- read_excel(here("data",
-                              "current","last_year_from_stokes.xlsx"), skip = 3)|>
+old_forecast_wrong_names <- read_excel(here("data",
+                              "current","old_forecast_wrong_names.xlsx"), skip = 3)|>
   janitor::remove_empty("cols")|>
   filter(`Geographic Area`=="British Columbia",
          NOC=="#T",
@@ -145,20 +145,26 @@ old_forecast <- read_excel(here("data",
   group_by(industry)%>%
   nest()%>%
   rename(old_forecast=data)%>%
-  fuzzyjoin::stringdist_join(employment)%>% #fuzzyjoin because stokes f'd up the industry names
+  fuzzyjoin::stringdist_full_join(employment) #fuzzyjoin because stokes f'd up the industry names
+
+old_forecast_wrong_names[old_forecast_wrong_names$industry.x!=old_forecast_wrong_names$industry.y,]
+
+old_forecast <- old_forecast_wrong_names%>%
   select(-employment)%>%
-  filter(!is.na(code))|>
   rename(industry=industry.y)|>
   ungroup()|>
-  select(-industry.x)%>%
+  select(-industry.x)|>
+  na.omit()|>
   unnest(old_forecast)%>%
   unite(industry, code, industry, sep=": ")%>%
   mutate(year=as.numeric(year))
+
 #now we have extracted the codes from employment we can unnest and unite the industry and code.-----------
 employment <- employment%>%
   unnest(employment)%>%
   unite(industry, code, industry, sep=": ")%>%
   mutate(year=as.numeric(year))
+
 #the raw forecast data------------------
 forecast_already <- read_csv(here("out","current", "forecasts.csv")) %>%
   group_by(industry, year) %>%
@@ -166,9 +172,12 @@ forecast_already <- read_csv(here("out","current", "forecasts.csv")) %>%
 #Forecasts must equal the constraint (first 5 years)-----------------
 constraint <- read_excel(here("data","current", "constraint.xlsx"))%>%
   rename(constraint=employment)
+
 forecast_totals <- forecast_already%>%
   group_by(year)%>%
   summarise(forecast=sum(value))
+
+
 # raw forecasts are adjusted to match either by bend or continue method.---------------
 adjustment <- full_join(forecast_totals, constraint)%>%
   mutate(forecast_over_constraint=forecast/constraint,

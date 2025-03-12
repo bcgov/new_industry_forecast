@@ -214,7 +214,6 @@ if (nrow(forecast_already) > 0) {
     distinct() #which industries have we forecast already?
   percent_forecasted <- inner_join(industry_share_last_year, forecasted_industries, by = "industry") |>
     summarize(industry_proportion = sum(industry_proportion)) |>
-    mutate(industry_proportion = scales::percent(industry_proportion, accuracy = .01)) |>
     pull() # what share of total employment do the forecast industries make?
   forecasted_by_year <- forecast_already |>
     filter(year < mean(year)) |> # only for the first 5 years of forecast
@@ -223,9 +222,9 @@ if (nrow(forecast_already) > 0) {
     inner_join(constraint, by = "year") |> # the budget constraint (top line employment)
     mutate(
       `#` = nrow(forecasted_industries),
-      `%` = percent_forecasted,
+      `%` = scales::percent(percent_forecasted, accuracy = .01),
       `Forecasts / Constraint` = scales::percent(total / employment, accuracy = .01),
-      too=if_else(`Forecasts / Constraint`>`%`,"high","low")
+      too=if_else(total/employment>percent_forecasted,"high","low")
     ) |>
     select(-total, -employment)
 } else {
@@ -241,7 +240,29 @@ if (nrow(forecast_already) > 0) {
 
 ## Inputs {.sidebar}
 
+
 ```{r}
+
+htmlOutput("timer")
+
+tags$script(HTML("
+  var seconds = 0;
+  var minutes = 0;
+
+  function updateTimer() {
+    seconds++;
+    if (seconds == 60) {
+      seconds = 0;
+      minutes++;
+    }
+
+    // Update the timer display
+     document.getElementById('timer').innerHTML = '<span style=\"font-weight: bold; color: black;\">Timer:</span> ' + minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
+  }
+  // Call updateTimer every second
+  setInterval(updateTimer, 1000);
+"))
+
 actionButton("reset", "Reset to clear adjustments")
 selectInput(
   "industry",
@@ -259,7 +280,7 @@ selectInput(
 
 sliderInput("shift", "Shift up or down",
   min = .5, max = 1.5,
-  value = 1, step = .05
+  value = 1, step = .01
 )
 sliderInput("slope", "Change slope",
   min = .9, max = 1.1,
@@ -520,3 +541,6 @@ renderDT({
   )
 })
 ```
+
+
+
