@@ -6,15 +6,6 @@ output:
     vertical_layout: fill
     source_code: https://github.com/bcgov/new_industry_forecast
 runtime: shiny
-resource_files:
-- "data/current/Employment for 64 LMO Industries 2000-2024.xlsx"
-- data/current/sim_fcasts.csv
-- data/current/old_forecast_wrong_names.xlsx
-- data/current/constraint.csv
-- "data/current/2024E_internal industry forecast_group notes - 2024 03 05.xlsx"
-- data/current/constraint.xlsx
-- data/current/driver_2025_partial.xlsx
-- out/current/forecasts.csv
 ---
 
 ```{css, echo=FALSE}
@@ -24,11 +15,8 @@ resource_files:
 ```
 
 ```{r setup, include=FALSE}
-#' The main challenge here is that data is being drawn in from multiple sources where
-#' it is not certain that industry names are consistent between sources... so we use 
-#' fuzzyjoins, which necessitates manually verifying that the joins were done correctly.  The
-#' file prepared for Stokes is viewed to be the "correct" naming and numbering,
-#' and then we impose this naming on last year's forecasts, notes and driver data to ensure consistency.
+
+#START RUNNING CODE LINE BY LINE HERE (control+enter)
 
 # libraries---------------------
 library(flexdashboard)
@@ -39,12 +27,13 @@ library(janitor)
 library(DT)
 library(markdown)
 library(shinyalert)
+library(shiny)
 library(fuzzyjoin)
 library(plotly)
 # constants-----------------------------
-historic_start <- 2014
-historic_end <- 2024
-colors <- c("Employment" = "black", "Last Year" = "purple", "New Forecast" = "orange", "Driver Data" = "blue", "Forecast Already" = "red", "CAGR Forecast"="aquamarine", "Sim Forecast"="yellow")
+historic_start <- 2014  #THIS NEEDS TO BE INCREMENTED
+historic_end <- 2024 #THIS NEEDS TO BE INCREMENTED
+colors <- c("Employment" = "black", "Last Year" = "purple", "New Forecast" = "orange", "Driver Data" = "blue", "Forecast Already" = "red", "CAGR Forecast"="aquamarine", "Prop Forecast"="yellow")
 
 # if forecast table doesn't exist create it.--------------------
 if (!file.exists(here("out","current", "forecasts.csv"))) {
@@ -77,13 +66,13 @@ make_forecast <- function(tbbl){
 # Employment data: THE correct industry names and codes.
 employment <- read_excel(here("data",
                               "current",
-                              "Employment for 64 LMO Industries 2000-2024.xlsx"), 
-                         skip = 2, 
+                              "historic.xlsx"), 
+                         skip = 3, 
                          sheet = "British Columbia")|>
   pivot_longer(cols=starts_with("2"), names_to="year", values_to = "value")|>
   rename(industry=contains("industry"),
          code=contains("code"))|>
-  filter(str_detect(code, "ind"))|>
+  filter(str_detect(code, "ind"))|> #strips out subtotal, difference and total
   group_by(code, industry)|>
   nest()|>
   rename(employment=data)
@@ -92,8 +81,11 @@ employment <- read_excel(here("data",
 
 old_forecast_wrong_names <- readxl::read_excel(here("data",
                                                     "current",
-                                                    "old_forecast_wrong_names.xlsx"), 
+                                                    "old.xlsx"), 
                                                skip = 3)|>
+  filter(NOC=="#T",
+         Variable=="Employment",
+         `Geographic Area`=="British Columbia")|>
   janitor::remove_constant()|>
   pivot_longer(cols=-Industry, names_to = "year")|>
   mutate(year=as.numeric(year))|>
@@ -104,11 +96,11 @@ old_forecast_wrong_names <- readxl::read_excel(here("data",
   stringdist_right_join(employment) 
 
 #names (if any) should refer to same industry
-old_forecast_wrong_names[old_forecast_wrong_names$industry.x!=old_forecast_wrong_names$industry.y,] 
+old_forecast_wrong_names[old_forecast_wrong_names$industry.x!=old_forecast_wrong_names$industry.y,]
 
 driver_data_wrong_names <- read_excel(here("data",
                                            "current",
-                                           "driver_2025_partial.xlsx"))|>  
+                                           "driver.xlsx"))|>  
   select(-contains("code"))|>
   rename(industry=`Ind Des`)|>
   pivot_longer(cols=-industry, names_to = "year", values_to = "value")|>
@@ -118,26 +110,26 @@ driver_data_wrong_names <- read_excel(here("data",
   stringdist_join(employment)
 
 #names (if any) should refer to the same industry
-driver_data_wrong_names[driver_data_wrong_names$industry.x!=driver_data_wrong_names$industry.y,] 
+driver_data_wrong_names[driver_data_wrong_names$industry.x!=driver_data_wrong_names$industry.y,]
 
 notes_wrong_names <- read_excel(here("data",
                                      "current",
-                                     "2024E_internal industry forecast_group notes - 2024 03 05.xlsx"))|>
+                                     "notes.xlsx"))|>
   select(industry=contains("name"), starts_with("2"))|>
   stringdist_right_join(employment)
 
 #names (if any) should refer to the same industry
 notes_wrong_names[notes_wrong_names$industry.x!=notes_wrong_names$industry.y,] 
 
-#load files with correct names
+#should be no name problems below:
 
-forecast_already <- read_csv(here("out","current", "forecasts.csv"))|> #names come from this app
+forecast_already <- read_csv(here("out","current", "forecasts.csv"))|> #correct names saved by app
   group_by(industry, year) |>
   summarize(value = last(value))# only the most recent forecast (if multiple).
 
-budget_constraint <- read_xlsx(here("data","current", "constraint.xlsx")) #no names to be wrong
+budget_constraint <- read_xlsx(here("data","current", "constraint.xlsx")) #no industry names
 
-sim_props <- read_csv(here("data","current","sim_fcasts.csv"))|> #names come from the same employment file.
+prop_fcast <- read_csv(here("data","current","prop_fcast.csv"))|> #based on historic.xlsx (correct names)
   rename(value=mean_fcast)
 
 # clean up after fuzzyjoins
@@ -184,14 +176,14 @@ extrapolated_constraint <- tibble(year=max(budget_constraint$year)+1:7,
 
 budget_plus_extrapolation <- bind_rows(budget_constraint, extrapolated_constraint)
 
-sim_fcasts <- sim_props|> 
+prop_fcast <- prop_fcast|> 
   inner_join(budget_plus_extrapolation)|>
   mutate(value=value*employment)|>
   select(-employment)
 
-constraint <- budget_plus_extrapolation|>
-  filter(year %in% forecast_years[1:5])|>
-  select(year, employment)
+# constraint <- budget_plus_extrapolation|>
+#   filter(year %in% forecast_years[1:5])|>
+#   select(year, employment)
 
 employment <- employment|>
   unnest(employment)|>
@@ -219,7 +211,7 @@ if (nrow(forecast_already) > 0) {
     filter(year < mean(year)) |> # only for the first 5 years of forecast
     group_by(year) |>
     summarize(total = sum(value)) |> #total employment forecast already.
-    inner_join(constraint, by = "year") |> # the budget constraint (top line employment)
+    inner_join(budget_constraint, by = "year") |> # the budget constraint (top line employment)
     mutate(
       `#` = nrow(forecasted_industries),
       `%` = scales::percent(percent_forecasted, accuracy = .01),
@@ -236,6 +228,8 @@ if (nrow(forecast_already) > 0) {
     too = rep("early", 5)
   )
 }
+
+#END RUNNING CODE LINE BY LINE HERE
 ```
 
 ## Inputs {.sidebar}
@@ -274,7 +268,7 @@ selectInput(
 selectInput(
   "fcast",
   "Select a forecast to modify",
-  c("Last Year","Driver","CAGR Forecast","Sim Forecast"),
+  c("Last Year","Driver","CAGR Forecast","Prop Forecast"),
   selected = "CAGR Forecast"
 )
 
@@ -373,8 +367,8 @@ reactive_CAGR_forecast <- reactive({
   make_forecast(reactive_employment())
 })
 
-reactive_sim_forecast <- reactive({
-  sim_fcasts |>
+reactive_prop_forecast <- reactive({
+  prop_fcast |>
     filter(industry == input$industry)
 })
 
@@ -402,7 +396,7 @@ reactive_new <- reactive({
     "Last Year" = reactive_old() |> mutate(year = year + 1), #push last years forecast ahead a year
     "Driver" = reactive_driver(),
     "CAGR Forecast" = reactive_CAGR_forecast(),
-    "Sim Forecast" = reactive_sim_forecast()
+    "Prop Forecast" = reactive_prop_forecast()
   )|>
     mutate(value = value * input$shift) |>
     full_join(adjustments(), by = "year") |>
@@ -472,7 +466,7 @@ plotly::renderPlotly({
   }
   plt <- plt+
     geom_line(data = reactive_CAGR_forecast(), mapping = aes(colour = "CAGR Forecast"), lwd = 2) +
-    geom_line(data = reactive_sim_forecast(), mapping = aes(colour = "Sim Forecast"), lwd = 2)+
+    geom_line(data = reactive_prop_forecast(), mapping = aes(colour = "Prop Forecast"), lwd = 2)+
     geom_line(data = reactive_old(), mapping = aes(colour = "Last Year"), lwd = 1) +
     geom_line(data = reactive_new(), mapping = aes(colour = "New Forecast"), lwd = 1)
     

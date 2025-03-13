@@ -12,20 +12,10 @@ library(ggpmisc)
 library(patchwork)
 library(ggpp)
 #constants------------
-historic_start <- 2014
-historic_end <- 2024
+historic_start <- 2014 #THIS NEEDS TO BE INCREMENTED
+historic_end <- 2024 #THIS NEEDS TO BE INCREMENTED
 # functions-----------------
-read_pivot_clean <- function(pattern, skip) {
-  read_excel(here("data","current", list.files(here("data","current"), pattern = pattern)), skip = skip) %>%
-    rename(
-      code = contains("code"),
-      industry = contains("ind") & !contains("code")
-    ) %>%
-    pivot_longer(cols = -c(industry, code), names_to = "year", values_to = "value") %>%
-    clean_names() %>%
-    mutate(year = as.numeric(year)) %>%
-    unite(industry, code, industry, sep = ": ")
-}
+
 #calls get_cagr 3 times for the 3 time periods of interest
 get3cagrs <- function(tbbl, series, offset){
   bind_rows(first_five_years = get_cagr(tbbl, forecast_start-offset, forecast_start+5-offset, series),
@@ -99,15 +89,6 @@ make_plot <- function(tbbl, industry, old, last, raw, bend, continue){
      plot_layout(heights = c(2,1))
  }
 
-# make_plot <- function(tbbl, industry, old, last, raw, bend, continue){
-#   ggplot()+
-#     geom_line(data=tbbl, mapping=aes(year,value, colour=series))+
-#     scale_y_continuous(labels=scales::comma)+
-#     labs(x=NULL,y="Employment",colour=NULL, title=industry)+
-#     theme_minimal(base_size = 15)+
-#     coord_cartesian(ylim = c(0, NA))
-# }
-
 # unnests cagrs and makes wider.------------------
 unnest_cagrs <- function(tbbl, nest, series){
   tbbl%>%
@@ -120,7 +101,7 @@ unnest_cagrs <- function(tbbl, nest, series){
 # read in the data--------------------------
 employment <- read_excel(here("data",
                               "current",
-                              list.files(here("data", "current"), pattern = "Employment for 64 LMO Industries")),
+                              "historic.xlsx"),
                          skip = 3,
                          sheet = "British Columbia")%>%
   pivot_longer(cols=-contains("Lmo"), names_to="year", values_to = "value")%>%
@@ -132,7 +113,7 @@ employment <- read_excel(here("data",
   rename(employment=data)
 #old forecasts have different industry codes so we drop the codes, join with employment by industry name to get new codes.----------
 old_forecast_wrong_names <- read_excel(here("data",
-                              "current","old_forecast_wrong_names.xlsx"), skip = 3)|>
+                              "current","old.xlsx"), skip = 3)|>
   janitor::remove_empty("cols")|>
   filter(`Geographic Area`=="British Columbia",
          NOC=="#T",
