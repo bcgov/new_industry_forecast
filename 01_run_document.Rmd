@@ -189,10 +189,6 @@ prop_fcast <- prop_fcast|>
   mutate(value=value*employment)|>
   select(-employment)
 
-# constraint <- budget_plus_extrapolation|>
-#   filter(year %in% forecast_years[1:5])|>
-#   select(year, employment)
-
 employment <- employment|>
   unnest(employment)|>
   unite(industry, code, industry, sep=": ")|>
