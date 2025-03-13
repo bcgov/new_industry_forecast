@@ -130,13 +130,13 @@ notes_wrong_names[notes_wrong_names$industry.x!=notes_wrong_names$industry.y,]
 
 #should be no name problems below:
 
-forecast_already <- read_csv(here("out","current", "forecasts.csv"))|> #correct names saved by app
+forecast_already <- read_csv(here("out","current", "forecasts.csv"))|> #created by app
   group_by(industry, year) |>
   summarize(value = last(value))# only the most recent forecast (if multiple).
 
 budget_constraint <- read_xlsx(here("data","current", "constraint.xlsx")) #no industry names
 
-prop_fcast <- read_csv(here("data","current","prop_fcast.csv"))|> #based on historic.xlsx (correct names)
+prop_fcast <- read_csv(here("data","current","prop_fcast.csv"))|> #created by 00_source_me.R
   rename(value=mean_fcast)
 
 # clean up after fuzzyjoins
@@ -179,14 +179,22 @@ years_elaspsed <-max(budget_constraint$year)-min(budget_constraint$year)
 budget_gf <- (last_emp/first_emp)^(1/years_elaspsed)
 
 extrapolated_constraint <- tibble(year=max(budget_constraint$year)+1:7, 
-                                  employment=last_emp*budget_gf^(year-max(budget_constraint$year)))
+                                  employment=last_emp*budget_gf^(year-max(budget_constraint$year)),
+                                  series="extrapolation")
 
 budget_plus_extrapolation <- bind_rows(budget_constraint, extrapolated_constraint)
+
+#Does this seem reasonable?----------------------
+ggplot(budget_plus_extrapolation|>mutate(series=if_else(is.na(series), "budget", series)), 
+       aes(year, employment, colour=series))+
+  geom_point()+
+  scale_y_continuous(labels=scales::comma)+
+  labs(title="Total Employment for BC")
 
 prop_fcast <- prop_fcast|> 
   inner_join(budget_plus_extrapolation)|>
   mutate(value=value*employment)|>
-  select(-employment)
+  select(-employment, -series)
 
 employment <- employment|>
   unnest(employment)|>
@@ -232,7 +240,7 @@ if (nrow(forecast_already) > 0) {
   )
 }
 
-#END RUNNING CODE LINE BY LINE HERE
+#END RUNNING CODE LINE BY LINE HERE... time to Run Document
 ```
 
 ## Inputs {.sidebar}

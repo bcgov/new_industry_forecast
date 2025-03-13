@@ -7,7 +7,7 @@ library(here)
 library(readxl)
 library(janitor)
 library(scales)
-library(assertthat)
+#library(assertthat)
 library(ggpmisc)
 library(patchwork)
 library(ggpp)
@@ -168,6 +168,8 @@ adjustment <- full_join(forecast_totals, constraint)%>%
 #the continue adjustment follows the trend in the forecast/constraint beyond its last value
 unconstrained_years <- (max(constraint$year)+1):(max(constraint$year)+6)
 adjustment$continue[6:11] <- predict(lm(forecast_over_constraint~year, data=adjustment), newdata = tibble(year=unconstrained_years))
+#take a look at the adjustments
+View(adjustment)
 #attach the adjustment info to the raw forecasts-----------------
 forecast_with_adj <- adjustment%>%
   select(year, bend, continue)%>%

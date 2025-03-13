@@ -18,25 +18,27 @@ tbbl <- read_excel(here("data","current","historic.xlsx"), skip = 3)|>
          thing="historic")|>
   tsibble(key=industry, index = year)
 
+# fit some models on the proportion data
 fit <- tbbl |>
-  model(linear=TSLM(prop ~ trend()),
-        ets=ETS(prop)
+  model(linear=TSLM(prop ~ trend()), #linear trend model
+        ets=ETS(prop) #exponential smoothing
         )
 
+# forecast the models
 forecast <- forecast(fit, h = 11)
 
-#take the mean of the two forecasts-------------------------
+#take the mean of the normalized proportion forecasts-------------------------
 
 mean_prop <- forecast|>
   as_tibble()|>
   group_by(industry, year)|>
-  summarize(mean_fcast=mean(.mean))|>
+  summarize(mean_fcast=mean(.mean))|>  #the mean raw proportion forecasts
   group_by(year)|>
-  mutate(mean_fcast=mean_fcast/sum(mean_fcast))
+  mutate(mean_fcast=mean_fcast/sum(mean_fcast)) #normalize the proportions to sum to 1.
 
 write_csv(mean_prop, here("data","current","prop_fcast.csv"))
 
-#look at it--------------------------------
+#take a look--------------------------------
 
 mean_prop|>
   rename(prop=mean_fcast)|>
