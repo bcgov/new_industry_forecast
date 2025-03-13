@@ -108,10 +108,9 @@ old_forecast_wrong_names[old_forecast_wrong_names$industry.x!=old_forecast_wrong
 
 driver_data_wrong_names <- read_excel(here("data",
                                            "current",
-                                           "driver.xlsx"))|>  
-  select(-contains("code"))|>
-  rename(industry=`Ind Des`)|>
-  pivot_longer(cols=-industry, names_to = "year", values_to = "value")|>
+                                           "driver.xlsx"))|> 
+  select(industry=(matches("ind") & !matches("code")), starts_with("2"))|>
+  pivot_longer(cols=starts_with("2"), names_to = "year", values_to = "value")|>
   group_by(industry)|>
   nest()|>
   rename(driver_data=data)|>
