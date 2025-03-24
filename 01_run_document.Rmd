@@ -23,6 +23,7 @@ resource_files:
 ```
 
 ```{r setup, include=FALSE}
+#START WITH CLEAN SLATE: Top menu bar, Session > Restart R
 #START RUNNING CODE LINE BY LINE HERE (control+enter)
 # libraries---------------------
 library(flexdashboard)
@@ -60,6 +61,7 @@ get_cagr <- function(tbbl, start_year, end_year) {
 }
 
 make_forecast <- function(tbbl){
+  #The CAGR forecast: employment forecast to grow at historic rate)
   tbbl <- tbbl|>
     mutate(year=as.numeric(year))
   start_val <- tbbl$value[tbbl$year==historic_start]
@@ -184,7 +186,7 @@ extrapolated_constraint <- tibble(year=max(budget_constraint$year)+1:7,
 
 budget_plus_extrapolation <- bind_rows(budget_constraint, extrapolated_constraint)
 
-#Does this seem reasonable?----------------------
+#cut and paste ggplot code into console to check extrapolation----------------------
 ggplot(budget_plus_extrapolation|>mutate(series=if_else(is.na(series), "budget", series)), 
        aes(year, employment, colour=series))+
   geom_point()+
@@ -240,7 +242,7 @@ if (nrow(forecast_already) > 0) {
   )
 }
 
-#END RUNNING CODE LINE BY LINE HERE... time to Run Document
+#END RUNNING CODE LINE BY LINE HERE... if no errors, you can Run Document
 ```
 
 ## Inputs {.sidebar}

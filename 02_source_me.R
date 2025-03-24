@@ -7,7 +7,6 @@ library(here)
 library(readxl)
 library(janitor)
 library(scales)
-#library(assertthat)
 library(ggpmisc)
 library(patchwork)
 library(ggpp)
@@ -16,7 +15,7 @@ historic_start <- 2014 #THIS NEEDS TO BE INCREMENTED
 historic_end <- 2024 #THIS NEEDS TO BE INCREMENTED
 # functions-----------------
 
-#calls get_cagr 3 times for the 3 time periods of interest
+#calls function get_cagr 3 times for the 3 time periods of interest
 get3cagrs <- function(tbbl, series, offset){
   bind_rows(first_five_years = get_cagr(tbbl, forecast_start-offset, forecast_start+5-offset, series),
             second_five_years = get_cagr(tbbl, forecast_start+5-offset, forecast_start+10-offset, series),
@@ -150,6 +149,7 @@ employment <- employment%>%
 forecast_already <- read_csv(here("out","current", "forecasts.csv")) %>%
   group_by(industry, year) %>%
   summarize(value = last(value))# only the most recent forecast (industry already in "code: name" format)
+
 #Forecasts must equal the constraint (first 5 years)-----------------
 constraint <- read_excel(here("data","current", "constraint.xlsx"))%>%
   rename(constraint=employment)
@@ -203,13 +203,21 @@ long <- bind_rows(lmo_observed, lmo_old_forecast, lmo_raw_forecast,lmo_bend, lmo
                             paste("Continue adjustment",forecast_start, sep = ": ")
                             )
          )
+
+#aggregate and add in as ind00: All
+
+all <- long|>
+  group_by(year, series)|>
+  summarize(value=sum(value))|>
+  mutate(industry="ind00: All")
+
 # convert it to wide format-------
-wide <- long%>%
+wide <- bind_rows(all, long)%>%
   filter(year>2009)%>%
   pivot_wider(id_cols = c(industry, series), names_from = year, values_from = value)%>%
   arrange(industry, series)
 #nest the long format dataframe by industry, calculate cagrs, make plots----------------
-nested <- long%>%
+nested <- bind_rows(all, long)%>%
   group_by(industry)%>%
   nest()%>%
   mutate(historical_cagr=map(data, get_cagr, historic_start, historic_end, "Historical"),

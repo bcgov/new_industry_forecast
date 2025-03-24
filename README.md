@@ -1,5 +1,12 @@
 # Instructions to setup app
 
+### Source code:
+
+-   Can be found at: https://github.com/bcgov/new_industry_forecast
+-   To clone the project, click on the green "code" button, and copy the URL to your clipboard.
+-   Rstudio > File > New Project> Version Control > Git > Paste URL > choose (hard drive) sub-directory > create project
+-   Note that this allows BOTH access to the most recent version of the code and the ability to time travel ("checking out" previous version)
+
 ### Guiding principle:
 
 -   Run through as much R code as possible interactively (control+enter),

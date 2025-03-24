@@ -3,9 +3,38 @@ library(readxl)
 library(janitor)
 library(fpp3)
 library(here)
+library(assertthat)
 library(conflicted)
 conflicts_prefer(dplyr::filter)
 
+#functions------------------------------------------------
+
+assert_file_exists <- function(file_name){
+  assert_that(file.exists(here("data", "current", file_name)),
+              msg=paste("A file with the exact name", file_name, "must be in folder data/current"))
+}
+
+#make the (recursive) file directory if doesn't exist---------------------
+
+if (!dir.exists("data")) {dir.create("data")}
+if (!dir.exists(file.path("data","current"))) {dir.create(file.path("data","current"))}
+if (!dir.exists(file.path("data","old"))) {dir.create(file.path("data","old"))}
+if (!dir.exists("out")) {dir.create("out")}
+if (!dir.exists(file.path("out","current"))) {dir.create(file.path("out","current"))}
+if (!dir.exists(file.path("out","old"))) {dir.create(file.path("out","old"))}
+
+#are the required files where they are supposed to be?----------------
+
+required_files <- c("constraint.xlsx",
+                    "driver.xlsx",
+                    "historic.xlsx",
+                    "notes.xlsx",
+                    "old.xlsx",
+                    "prop_fcast.csv")
+
+sapply(required_files, assert_file_exists)
+
+#read in historic LFS data-------------------------------------------
 tbbl <- read_excel(here("data","current","historic.xlsx"), skip = 3)|>
   filter(str_detect(`Lmo Ind Code`, "ind"))|>
   pivot_longer(cols = starts_with("2"), names_to = "year")|>
