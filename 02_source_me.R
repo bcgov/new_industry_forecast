@@ -249,4 +249,26 @@ nested%>%
   walk(print)
 dev.off()
 # write the wide format data to disk--------
-write_csv(all_the_data, here("out","current", paste0("LMO_", forecast_start, "_industry_forecast.csv")), na ="")
+write_csv(all_the_data, here("out","current", paste0("LMO_", forecast_start, "_industry_adjustments.csv")), na ="")
+
+#prepare file to send to stokes (keep either the continue or bend adjusted)
+numbers <- all_the_data|>
+  filter(str_detect(series, "Historical|Continue"))|>
+  select(-series)|>
+  select(industry, starts_with("2"))|>
+  pivot_longer(cols=starts_with("2"))|>
+  filter(!is.na(value))|>
+  pivot_wider()
+
+cagrs <- all_the_data|>
+  filter(str_detect(series, "Historical|Continue"))|>
+  select(-series)|>
+  select(industry, starts_with("C"))|>
+  pivot_longer(cols=starts_with("C"))|>
+  filter(!is.na(value))|>
+  pivot_wider()
+
+full_join(numbers, cagrs)|>
+  write_csv(here("out","current", paste0("LMO_", forecast_start, "_industry_forecasts_for_stokes.csv")), na ="")
+
+
