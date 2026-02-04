@@ -1,0 +1,20 @@
+file: 2025_historic_lmo_ind_code.xlsx
+sha256: 4ce3db009fa246d7c19151336a34c0744912646254f3693dbe895b54ca081106
+size_bytes: 46490.0
+n_rows: .na.integer
+n_cols: 5
+col_names:
+- year
+- lmo_ind_code
+- lmo_detailed_industry
+- employment
+- series
+col_types:
+- numeric
+- character
+- character
+- numeric
+- character
+created: 2026-02-03 15:12:59.110129
+semantic_name: historic_lmo_ind_code.xlsx
+provenance: ~

@@ -1,0 +1,44 @@
+file: 2025_stokes_forecast.csv
+sha256: d4e89d25c2b32805ce0f0e9352f5233991c95fa387616e34c6361c1d56c8150e
+size_bytes: 1.846306e+07
+n_rows: .na.integer
+n_cols: 17
+col_names:
+- '""'
+- '""_1'
+- '""_2'
+- '""_3'
+- '""_4'
+- '""_5'
+- '""_6'
+- '""_7'
+- '""_8'
+- '""_9'
+- '""_10'
+- '""_11'
+- '""_12'
+- '""_13'
+- '""_14'
+- '""_15'
+- '""_16'
+col_types:
+- unknown
+- unknown
+- unknown
+- unknown
+- unknown
+- unknown
+- unknown
+- unknown
+- unknown
+- unknown
+- unknown
+- unknown
+- unknown
+- unknown
+- unknown
+- unknown
+- unknown
+created: 2026-02-03 15:12:59.196351
+semantic_name: stokes_forecast.csv
+provenance: ~

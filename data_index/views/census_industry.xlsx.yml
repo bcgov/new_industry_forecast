@@ -1,0 +1,6 @@
+semantic_name: census_industry.xlsx
+preferred: raw
+raw: 2021_census_industry.xlsx
+meta_file: 2021_census_industry.xlsx.yml
+sha256: a70b7d1ebb8e3d558fcbe4a34c2f701c0837b9fa4b0589e8ea51f1f65594a662
+updated: 2026-02-03 15:12:59

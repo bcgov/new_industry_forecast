@@ -1,0 +1,6 @@
+semantic_name: stokes_forecast.csv
+preferred: raw
+raw: 2025_stokes_forecast.csv
+meta_file: 2025_stokes_forecast.csv.yml
+sha256: d4e89d25c2b32805ce0f0e9352f5233991c95fa387616e34c6361c1d56c8150e
+updated: 2026-02-03 15:12:59

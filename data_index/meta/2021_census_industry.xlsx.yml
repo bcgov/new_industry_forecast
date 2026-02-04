@@ -1,0 +1,20 @@
+file: 2021_census_industry.xlsx
+sha256: a70b7d1ebb8e3d558fcbe4a34c2f701c0837b9fa4b0589e8ea51f1f65594a662
+size_bytes: 9175.0
+n_rows: .na.integer
+n_cols: 5
+col_names:
+- lmo_ind_code
+- lmo_detailed_industry
+- employment
+- year
+- series
+col_types:
+- character
+- character
+- numeric
+- numeric
+- character
+created: 2026-02-03 15:12:59.087741
+semantic_name: census_industry.xlsx
+provenance: ~

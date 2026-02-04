@@ -1,0 +1,24 @@
+file: 2025_notes.xlsx
+sha256: 2caf74d6c2e47d8e298442d7b756c6428fdf8523c654bcabfe36be5a7b82ac4e
+size_bytes: 20912.0
+n_rows: .na.integer
+n_cols: 7
+col_names:
+- LMO Industry code
+- LMO Industry name
+- Additional information for forecast
+- TARIFF IMPACT TEER - 1 (high) to 4 (low)
+- 2025 Edition – notes on forecast
+- 2024 Edition - notes on forecast
+- 2023 Edition - notes on forecast
+col_types:
+- character
+- character
+- character
+- numeric
+- character
+- character
+- character
+created: 2026-02-03 15:12:59.115287
+semantic_name: notes.xlsx
+provenance: ~

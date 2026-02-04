@@ -7,12 +7,13 @@ output:
     source_code: https://github.com/bcgov/new_industry_forecast
 runtime: shiny
 resource_files:
-- data/current/historic.xlsx
-- data/current/old.xlsx
-- data/current/constraint.xlsx
-- data/current/driver.xlsx
-- data/current/notes.xlsx
-- data/current/prop_fcast.csv
+- app_data/budget_constraint.rds
+- app_data/census.rds
+- app_data/driver_data.rds
+- app_data/employment.rds
+- app_data/notes.rds
+- app_data/old_forecast.rds
+- app_data/rich_fcast.rds
 - out/current/forecasts.csv
 ---
 
@@ -23,188 +24,74 @@ resource_files:
 ```
 
 ```{r setup, include=FALSE}
+#options(repos = c(CRAN = "https://cloud.r-project.org"))
 #START WITH CLEAN SLATE: Top menu bar, Session > Restart R
 #START RUNNING CODE LINE BY LINE HERE (control+enter)
 # libraries---------------------
 library(flexdashboard)
 library(tidyverse)
-library(readxl)
+#library(readxl)
 library(here)
-library(janitor)
+#library(janitor)
 library(DT)
 library(shinyalert)
 library(shiny)
-library(fuzzyjoin)
 library(plotly)
 library(conflicted)
 conflicts_prefer(dplyr::filter)
 conflicts_prefer(plotly::layout)
 # constants-----------------------------
-historic_start <- 2014  #THIS NEEDS TO BE INCREMENTED
-historic_end <- 2024 #THIS NEEDS TO BE INCREMENTED
-colors <- c("Employment" = "black", "Last Year" = "purple", "New Forecast" = "orange", "Driver Data" = "blue", "Forecast Already" = "red", "CAGR Forecast"="aquamarine", "Prop Forecast"="yellow")
+colors <- c("LFS" = "black", "Last Year" = "purple", "New Forecast" = "orange", "Driver Data" = "blue", "Forecast Already" = "brown", "Rich Forecast"="yellow", "Census"="red")
 
 # if forecast table doesn't exist create it.--------------------
-if (!file.exists(here("out","current", "forecasts.csv"))) {
-  tibble(year= numeric(), value=numeric(), industry = character()) |>
-    write_csv(here("out","current", "forecasts.csv"))
-}
-
-# functions------------------
+# if (!file.exists(here("out","current", "forecasts.csv"))) {
+#   tibble(year= numeric(), value=numeric(), industry = character()) |>
+#     write_csv(here("out","current", "forecasts.csv"))
+# }
+#functions------------------
 get_cagr <- function(tbbl, start_year, end_year) {
   start_val <- tbbl$value[tbbl$year==start_year]
   end_val <- tbbl$value[tbbl$year==end_year]
-  c(start_year, 
-    end_year, 
-    scales::percent((end_val / start_val)^(1 / (end_year - start_year)) - 1, 
+  c(start_year,
+    end_year,
+    scales::percent((end_val / start_val)^(1 / (end_year - start_year)) - 1,
                     accuracy = .1))
 }
 
-make_forecast <- function(tbbl){
-  #The CAGR forecast: employment forecast to grow at historic rate)
-  tbbl <- tbbl|>
-    mutate(year=as.numeric(year))
-  start_val <- tbbl$value[tbbl$year==historic_start]
-  end_val <- tbbl$value[tbbl$year==historic_end]
-  historic_cagr <- (end_val / start_val)^(1 / (historic_end - historic_start))
-  grow_by <- historic_cagr^(1:11)
-  year <- (max(tbbl$year)+1):(max(tbbl$year)+11)
-  value <- end_val*grow_by
-  tibble(industry=input$industry, year=year, value=value)
-}
+#read in the rds files------------------------
 
-# Employment data: THE correct industry names and codes.
-employment <- read_excel(here("data",
-                              "current",
-                              "historic.xlsx"), 
-                         skip = 3, 
-                         sheet = "British Columbia")|>
-  pivot_longer(cols=starts_with("2"), names_to="year", values_to = "value")|>
-  rename(industry=contains("industry"),
-         code=contains("code"))|>
-  filter(str_detect(code, "ind"))|> #strips out subtotal, difference and total
-  group_by(code, industry)|>
-  nest()|>
-  rename(employment=data)
+census<- read_rds(here("app_data", "census.rds"))
+budget_constraint<- read_rds(here("app_data", "budget_constraint.rds"))
+driver_data<- read_rds(here("app_data", "driver_data.rds"))
+employment<- read_rds(here("app_data", "employment.rds"))
+notes<- read_rds(here("app_data", "notes.rds"))
+old_forecast<- read_rds(here("app_data", "old_forecast.rds"))
+rich_fcast<- read_rds(here("app_data", "rich_fcast.rds"))
 
-#read in the files with (potentially) incorrect names
 
-old_forecast_wrong_names <- readxl::read_excel(here("data",
-                                                    "current",
-                                                    "old.xlsx"), 
-                                               skip = 3)|>
-  filter(NOC=="#T",
-         Variable=="Employment",
-         `Geographic Area`=="British Columbia")|>
-  janitor::remove_constant()|>
-  pivot_longer(cols=-Industry, names_to = "year")|>
-  mutate(year=as.numeric(year))|>
-  clean_names()|>
-  group_by(industry)|>
-  nest()|>
-  rename(old_forecast=data)|>
-  stringdist_right_join(employment) 
 
-#names (if any) should refer to same industry
-old_forecast_wrong_names[old_forecast_wrong_names$industry.x!=old_forecast_wrong_names$industry.y,]
-
-driver_data_wrong_names <- read_excel(here("data",
-                                           "current",
-                                           "driver.xlsx"))|> 
-  select(industry=(matches("ind") & !matches("code")), starts_with("2"))|>
-  pivot_longer(cols=starts_with("2"), names_to = "year", values_to = "value")|>
-  group_by(industry)|>
-  nest()|>
-  rename(driver_data=data)|>
-  stringdist_join(employment)
-
-#names (if any) should refer to the same industry
-driver_data_wrong_names[driver_data_wrong_names$industry.x!=driver_data_wrong_names$industry.y,]
-
-notes_wrong_names <- read_excel(here("data",
-                                     "current",
-                                     "notes.xlsx"))|>
-  select(industry=contains("name"), starts_with("2"))|>
-  stringdist_right_join(employment)
-
-#names (if any) should refer to the same industry
-notes_wrong_names[notes_wrong_names$industry.x!=notes_wrong_names$industry.y,] 
-
-#should be no name problems below:
-
+# read in forecasts we have made already---------------------------------
 forecast_already <- read_csv(here("out","current", "forecasts.csv"))|> #created by app
   group_by(industry, year) |>
   summarize(value = last(value))# only the most recent forecast (if multiple).
 
-budget_constraint <- read_xlsx(here("data","current", "constraint.xlsx")) #no industry names
-
-prop_fcast <- read_csv(here("data","current","prop_fcast.csv"))|> #created by 00_source_me.R
-  rename(value=mean_fcast)
-
-# clean up after fuzzyjoins
-
-old_forecast <- old_forecast_wrong_names|>
-  ungroup()|>
-  select(-employment, -industry.x)|>
-  rename(industry=industry.y)|>
-  filter(!is.na(code))|>
-  unnest(old_forecast)|>
-  unite(industry, code, industry, sep=": ")|>
-  mutate(year=as.numeric(year))
-
-driver_data <- driver_data_wrong_names|> 
-  ungroup()|>
-  select(-employment, -industry.x)|>
-  rename(industry=industry.y)|>
-  unnest(driver_data)|>
-  unite(industry, code, industry, sep=": ")|>
-  mutate(year=as.numeric(year),
-         mean_value=mean(value, na.rm = TRUE),
-         value=if_else(mean_value<1000, value*1000, value) #if mean value < 1000 must be in 1000's
-         )|>
-  select(-mean_value)
-
-notes <- notes_wrong_names|> 
-  select(starts_with("2"), code, industry=industry.y)|>
-  unite(industry, c(code, industry), sep=": ")|>
-  pivot_longer(cols=starts_with("2"))|>
-  mutate(value=str_replace_all(value, "-"," "),
-         name=str_remove_all(name, "- notes on forecast"))
-
 # preliminary calculations-------------------
-
-forecast_years <- old_forecast_wrong_names$old_forecast[[1]]$year+1
 
 last_emp <- budget_constraint$employment[budget_constraint$year==max(budget_constraint$year)]
 first_emp <- budget_constraint$employment[budget_constraint$year==min(budget_constraint$year)]
 years_elaspsed <-max(budget_constraint$year)-min(budget_constraint$year) 
 budget_gf <- (last_emp/first_emp)^(1/years_elaspsed)
 
-extrapolated_constraint <- tibble(year=max(budget_constraint$year)+1:7, 
-                                  employment=last_emp*budget_gf^(year-max(budget_constraint$year)),
-                                  series="extrapolation")
-
-budget_plus_extrapolation <- bind_rows(budget_constraint, extrapolated_constraint)
-
-#cut and paste ggplot code into console to check extrapolation----------------------
-ggplot(budget_plus_extrapolation|>mutate(series=if_else(is.na(series), "budget", series)), 
-       aes(year, employment, colour=series))+
-  geom_point()+
-  scale_y_continuous(labels=scales::comma)+
-  labs(title="Total Employment for BC")
-
-prop_fcast <- prop_fcast|> 
-  inner_join(budget_plus_extrapolation)|>
-  mutate(value=value*employment)|>
-  select(-employment, -series)
-
 employment <- employment|>
   unnest(employment)|>
   unite(industry, code, industry, sep=": ")|>
   mutate(year=as.numeric(year))
 
+#derive some "constants" from employment data.
+historic_end <- max(employment$year)
+historic_start <- historic_end-10
+forecast_years <- (historic_end+1):(historic_end+11)
 industries <- unique(employment$industry) # for the drop down list.
-
 default_industry <- industries[!industries %in% unique(forecast_already$industry)][1] 
 
 industry_share_last_year <- employment |> # for keeping track of how much has been forecast
@@ -281,8 +168,8 @@ selectInput(
 selectInput(
   "fcast",
   "Select a forecast to modify",
-  c("Last Year","Driver","CAGR Forecast","Prop Forecast"),
-  selected = "CAGR Forecast"
+  c("Last Year","Driver","Rich Forecast"),
+  selected = "Rich Forecast"
 )
 
 sliderInput("shift", "Shift up or down",
@@ -300,7 +187,7 @@ sliderInput(
   value = 0, step = 1
 )
 
-checkboxInput("origin", "Are you Sazid? (should y axis include the origin)", value = FALSE)
+checkboxInput("origin", "Should y axis include the origin?", value = FALSE)
 ```
 
 ```{r}
@@ -380,8 +267,13 @@ reactive_CAGR_forecast <- reactive({
   make_forecast(reactive_employment())
 })
 
-reactive_prop_forecast <- reactive({
-  prop_fcast |>
+reactive_rich_fcast <- reactive({
+  rich_fcast |>
+    filter(industry == input$industry)
+})
+
+reactive_census <- reactive({
+  census |>
     filter(industry == input$industry)
 })
 
@@ -409,7 +301,7 @@ reactive_new <- reactive({
     "Last Year" = reactive_old() |> mutate(year = year + 1), #push last years forecast ahead a year
     "Driver" = reactive_driver(),
     "CAGR Forecast" = reactive_CAGR_forecast(),
-    "Prop Forecast" = reactive_prop_forecast()
+    "Rich Forecast" = reactive_rich_fcast()
   )|>
     mutate(value = value * input$shift) |>
     full_join(adjustments(), by = "year") |>
@@ -472,37 +364,33 @@ reactive_notes <- reactive({
 ```{r, fig.retina=2}
 plotly::renderPlotly({
   plt <- ggplot(mapping=aes(year,value)) +
-    geom_line(data = reactive_employment(), mapping = aes(colour = "Employment"), lwd = 1)
+    geom_line(data = reactive_employment(), mapping = aes(colour = "LFS"), lwd = 1)
   if(nrow(reactive_driver())>1){
     if(is.na(reactive_driver()$value[1])){shinyalert("No driver data yet")}
     plt <- plt+geom_line(data = reactive_driver(), mapping = aes(colour = "Driver Data"), lwd = 2)
   }
   plt <- plt+
-    geom_line(data = reactive_CAGR_forecast(), mapping = aes(colour = "CAGR Forecast"), lwd = 2) +
-    geom_line(data = reactive_prop_forecast(), mapping = aes(colour = "Prop Forecast"), lwd = 2)+
+    geom_point(data= reactive_census(), mapping = aes(colour = "Census"))+
+    geom_line(data = reactive_rich_fcast(), mapping = aes(colour = "Rich Forecast"), lwd = 2)+
     geom_line(data = reactive_old(), mapping = aes(colour = "Last Year"), lwd = 1) +
     geom_line(data = reactive_new(), mapping = aes(colour = "New Forecast"), lwd = 1)
-    
+
   if(nrow(reactive_already())>1){
     plt <- plt+geom_line(data = reactive_already(), mapping = aes(colour = "Forecast Already"), lwd = 1)
   }
   plt <- plt+
     scale_color_manual(values = colors) +
     scale_y_continuous(labels = scales::comma) +
-    scale_x_continuous(breaks = seq(min(reactive_employment()$year), max(reactive_new()$year),2))+
+    scale_x_continuous(breaks = seq(min(reactive_employment()$year), max(reactive_new()$year), 2))+
     labs(x = "", y = "", color = "") +
-    theme(text = element_text(size = 20))
-  
+    theme(text = element_text(size = 16))
+
   if(input$origin==TRUE){
-    plt <- plt+ 
+    plt <- plt+
       expand_limits(y = 1)
   }
-  
-  ggplotly(plt)|>
-  layout(legend = list(
-      orientation = "h"
-    )
-  )
+
+  ggplotly(plt)
 })
 ```
 

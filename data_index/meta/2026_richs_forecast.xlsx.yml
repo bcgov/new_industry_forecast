@@ -1,0 +1,26 @@
+file: 2026_richs_forecast.xlsx
+sha256: 792b3d4dd969c4b029e7545d0cc5772069b254f36314eebee1ede5da85f9b353
+size_bytes: 1.7368399e+07
+n_rows: .na.integer
+n_cols: 8
+col_names:
+- bc_region
+- noc_5
+- lmo_ind_code
+- lmo_detailed_industry
+- year
+- employment
+- expansion_demand
+- replacement_demand
+col_types:
+- character
+- character
+- character
+- character
+- numeric
+- numeric
+- numeric
+- numeric
+created: 2026-02-03 15:28:41.887283
+semantic_name: richs_forecast.xlsx
+provenance: ~
