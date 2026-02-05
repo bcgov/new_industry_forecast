@@ -1,6 +1,6 @@
-file: 2021_census_industry.xlsx
-sha256: bf8bd6f5c129722bc5b4a158530f2ef01ddf29dd77dd916176ba673eaa248bf6
-size_bytes: 9178.0
+file: 2021v2_census_industry.xlsx
+sha256: 317d2a340d709aec8e868401e784e3d2324d8c4090eddcf4fbb787ee38c9892f
+size_bytes: 9174.0
 n_rows: .na.integer
 n_cols: 5
 col_names:
@@ -15,6 +15,6 @@ col_types:
 - numeric
 - numeric
 - character
-created: 2026-02-04 18:07:50.858285
+created: 2026-02-04 18:45:04.692007
 semantic_name: census_industry.xlsx
 provenance: ~

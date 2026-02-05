@@ -1,6 +1,6 @@
 semantic_name: richs_forecast.xlsx
 preferred: raw
-raw: 2026_richs_forecast.xlsx
-meta_file: 2026_richs_forecast.xlsx.yml
-sha256: 792b3d4dd969c4b029e7545d0cc5772069b254f36314eebee1ede5da85f9b353
-updated: 2026-02-03 15:28:41
+raw: 2026-02-05 09:17:16.350396_richs_forecast.xlsx
+meta_file: 2026-02-05 09:17:16.350396_richs_forecast.xlsx.yml
+sha256: 115cc9e1ad9278a547370d5e766efe00536c180412ad32aaa5a286cd3fa2a004
+updated: 2026-02-05 09:41:48
