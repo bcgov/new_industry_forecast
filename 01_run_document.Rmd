@@ -43,11 +43,12 @@ conflicts_prefer(plotly::layout)
 # constants-----------------------------
 colors <- c("LFS" = "black", "Last Year" = "purple", "New Forecast" = "orange", "Driver Data" = "blue", "Forecast Already" = "brown", "Rich Forecast"="yellow", "Census"="red")
 
-# if forecast table doesn't exist create it.--------------------
-# if (!file.exists(here("out","current", "forecasts.csv"))) {
-#   tibble(year= numeric(), value=numeric(), industry = character()) |>
-#     write_csv(here("out","current", "forecasts.csv"))
-# }
+#if forecast table doesn't exist create it.--------------------
+if (!file.exists(here("out","current", "forecasts.csv"))) {
+  tibble(year= numeric(), value=numeric(), industry = character()) |>
+    write_csv(here("out","current", "forecasts.csv"))
+}
+
 #functions------------------
 get_cagr <- function(tbbl, start_year, end_year) {
   start_val <- tbbl$value[tbbl$year==start_year]
@@ -67,8 +68,6 @@ employment<- read_rds(here("app_data", "employment.rds"))
 notes<- read_rds(here("app_data", "notes.rds"))
 old_forecast<- read_rds(here("app_data", "old_forecast.rds"))
 rich_fcast<- read_rds(here("app_data", "rich_fcast.rds"))
-
-
 
 # read in forecasts we have made already---------------------------------
 forecast_already <- read_csv(here("out","current", "forecasts.csv"))|> #created by app

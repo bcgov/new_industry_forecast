@@ -10,9 +10,8 @@ library(scales)
 library(ggpmisc)
 library(patchwork)
 library(ggpp)
-#constants------------
-historic_start <- 2014 #THIS NEEDS TO BE INCREMENTED
-historic_end <- 2024 #THIS NEEDS TO BE INCREMENTED
+#library(bcgovpond)
+library(conflicted)
 # functions-----------------
 
 #calls function get_cagr 3 times for the 3 time periods of interest
@@ -98,52 +97,15 @@ unnest_cagrs <- function(tbbl, nest, series){
     pivot_wider(names_from = period, values_from = cagr, names_prefix = "CAGR: ")
 }
 # read in the data--------------------------
-employment <- read_excel(here("data",
-                              "current",
-                              "historic.xlsx"),
-                         skip = 3,
-                         sheet = "British Columbia")%>%
-  pivot_longer(cols=-contains("Lmo"), names_to="year", values_to = "value")%>%
-  rename(industry=contains("industry"),
-         code=contains("code"))%>%
-  filter(str_detect(code, "ind"))%>% #not the totals and subtotals
-  group_by(code, industry)%>%
-  nest()%>%
-  rename(employment=data)
-#old forecasts have different industry codes so we drop the codes, join with employment by industry name to get new codes.----------
-old_forecast_wrong_names <- read_excel(here("data",
-                              "current","old.xlsx"), skip = 3)|>
-  janitor::remove_empty("cols")|>
-  filter(`Geographic Area`=="British Columbia",
-         NOC=="#T",
-         Industry!="All industries"
-         )%>%
-  select(-contains("CAGR"), -NOC, -Description, -Variable, -`Geographic Area`)%>%
-  pivot_longer(cols=-Industry, names_to = "year", values_to = "value")%>%
-  mutate(year=as.numeric(year))%>%
-  clean_names()%>%
-  group_by(industry)%>%
-  nest()%>%
-  rename(old_forecast=data)%>%
-  fuzzyjoin::stringdist_full_join(employment) #fuzzyjoin because stokes f'd up the industry names
+employment<- read_rds(here("app_data", "employment.rds"))|>
+  unite("industry", "code", "industry", sep=": ")
+#calculate some "constants"
+historic_end <- max(employment$employment[[1]]$year)
+historic_start <- historic_end-10
 
-old_forecast_wrong_names[old_forecast_wrong_names$industry.x!=old_forecast_wrong_names$industry.y,]
-
-old_forecast <- old_forecast_wrong_names%>%
-  select(-employment)%>%
-  rename(industry=industry.y)|>
-  ungroup()|>
-  select(-industry.x)|>
-  na.omit()|>
-  unnest(old_forecast)%>%
-  unite(industry, code, industry, sep=": ")%>%
-  mutate(year=as.numeric(year))
-
-#now we have extracted the codes from employment we can unnest and unite the industry and code.-----------
-employment <- employment%>%
-  unnest(employment)%>%
-  unite(industry, code, industry, sep=": ")%>%
-  mutate(year=as.numeric(year))
+old_forecast<- read_rds(here("app_data", "old_forecast.rds"))|>
+  group_by(industry)|>
+  nest()
 
 #the raw forecast data------------------
 forecast_already <- read_csv(here("out","current", "forecasts.csv")) %>%
@@ -151,7 +113,7 @@ forecast_already <- read_csv(here("out","current", "forecasts.csv")) %>%
   summarize(value = last(value))# only the most recent forecast (industry already in "code: name" format)
 
 #Forecasts must equal the constraint (first 5 years)-----------------
-constraint <- read_excel(here("data","current", "constraint.xlsx"))%>%
+constraint <- read_rds(here("app_data", "budget_constraint.rds"))%>%
   rename(constraint=employment)
 
 forecast_totals <- forecast_already%>%

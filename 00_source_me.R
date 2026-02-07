@@ -6,11 +6,6 @@ library(janitor)
 library(conflicted)
 conflicts_prefer(dplyr::filter)
 conflicts_prefer(plotly::layout)
-
-#takes the data from data_store/add_to_pond and adds it to the pond
-ingest_pond()
-
-
 clean <- function(x) {
   x <- gsub("\u00A0", " ", x)   # non-breaking space
   x <- gsub("[\t\r\n]", " ", x) # tabs / line breaks
@@ -19,7 +14,7 @@ clean <- function(x) {
 }
 
 fuzzy_right_join <- function(x, y, by_x, by_y, max_dist = 3) {
-  crossing(x = x, y = y)|> #all possible pairings (Cartesian product)
+  crossing(x = x, y = y)|> #all possible pairings (becomes problematic with large tbbls)
     unnest(c(x, y), names_sep = ".") |> #flatten the paired rows into columns
     mutate(
       dist = stringdist::stringdist(
@@ -33,6 +28,10 @@ fuzzy_right_join <- function(x, y, by_x, by_y, max_dist = 3) {
     ungroup() |>
     filter(dist <= max_dist)
 }
+
+#takes the data from data_store/add_to_pond and adds it to the pond
+
+ingest_pond()
 
 # Employment data: THE correct industry names and codes.
 
