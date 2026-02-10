@@ -30,9 +30,7 @@ resource_files:
 # libraries---------------------
 library(flexdashboard)
 library(tidyverse)
-#library(readxl)
 library(here)
-#library(janitor)
 library(DT)
 library(shinyalert)
 library(shiny)
@@ -262,10 +260,6 @@ reactive_old <- reactive({
     filter(industry == input$industry)
 })
 
-reactive_CAGR_forecast <- reactive({
-  make_forecast(reactive_employment())
-})
-
 reactive_rich_fcast <- reactive({
   rich_fcast |>
     filter(industry == input$industry)
@@ -299,7 +293,6 @@ reactive_new <- reactive({
   switch(input$fcast,
     "Last Year" = reactive_old() |> mutate(year = year + 1), #push last years forecast ahead a year
     "Driver" = reactive_driver(),
-    "CAGR Forecast" = reactive_CAGR_forecast(),
     "Rich Forecast" = reactive_rich_fcast()
   )|>
     mutate(value = value * input$shift) |>

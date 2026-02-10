@@ -56,7 +56,8 @@ fuzzy_right_join <- function(
     ) |>
     dplyr::filter(len_diff <= max_dist, dist <= max_dist) |>
     dplyr::group_by(wrong) |>
-    dplyr::slice_min(dist, with_ties = FALSE) |>
+    dplyr::arrange(dist, len_diff) |>
+    dplyr::slice(1)|>
     dplyr::ungroup()
 
   # Build fuzzy matches by joining back to full rows
@@ -83,7 +84,7 @@ employment <-  read_view("historic_lmo_ind_code.xlsx")|>
 
 #read in the files with (potentially) incorrect names
 
-old_forecast_wrong_names <- read_view("stokes_forecast.csv", skip = 3)|>
+old_forecast <- read_view("stokes_forecast.csv", skip = 3)|>
   filter(NOC=="#T", Industry!="All industries", `Geographic Area`=="British Columbia")|>
   select(Industry, starts_with("2"))|>
   pivot_longer(cols = starts_with("2"), names_to = "year")|>
@@ -92,32 +93,38 @@ old_forecast_wrong_names <- read_view("stokes_forecast.csv", skip = 3)|>
   group_by(industry)|>
   nest()|>
   rename(old_forecast=data)|>
-  fuzzy_right_join(
-    employment,
-    industry,
-    industry
-  )
+  fuzzy_right_join(employment, industry, industry)|>
+  ungroup()|>
+  select(-employment)|>
+  unnest(old_forecast)|>
+  unite(industry, code, industry, sep=": ")|>
+  mutate(year=as.numeric(year))
 
-
-driver_data_wrong_names <- read_view("driver.xlsx")|>
+driver_data <- read_view("driver.xlsx")|>
   select(industry=(matches("ind") & !matches("code")), starts_with("2"))|>
   pivot_longer(cols=starts_with("2"), names_to = "year", values_to = "value")|>
   group_by(industry)|>
   nest()|>
   rename(driver_data=data)|>
-  fuzzy_right_join(
-    employment,
-    industry,
-    industry
-  )
+  fuzzy_right_join(employment, industry, industry)|>
+  ungroup()|>
+  select(-employment)|>
+  unnest(driver_data)|>
+  unite(industry, code, industry, sep=": ")|>
+  mutate(year=as.numeric(year),
+         mean_value=mean(value, na.rm = TRUE),
+         value=if_else(mean_value<1000, value*1000, value) #if mean value < 1000 must be in 1000's
+  )|>
+  select(-mean_value)
 
-notes_wrong_names <- read_view("notes.xlsx")|>
+notes <- read_view("notes.xlsx")|>
   select(industry=contains("name"), starts_with("2"))|>
-  fuzzy_right_join(
-    employment,
-    industry,
-    industry
-  )
+  fuzzy_right_join(employment, industry, industry)|>
+  select(contains("20"), code, industry)|>
+  unite(industry, code, industry, sep=": ")|>
+  pivot_longer(cols=contains("20"))|>
+  mutate(value=str_replace_all(value, "-"," "),
+         name = stringr::str_extract(name, "\\b\\d{4} Edition\\b"))
 
 budget_constraint <- read_view("constraint.xlsx") #no industry names
 
@@ -131,33 +138,6 @@ census <- read_view("census_industry.xlsx")|>
   rename(value=employment)
 
 census$industry <- clean(census$industry)
-
-# clean up after fuzzyjoins
-
-old_forecast <- old_forecast_wrong_names|>
-  ungroup()|>
-  select(-employment)|>
-  unnest(old_forecast)|>
-  unite(industry, code, industry, sep=": ")|>
-  mutate(year=as.numeric(year))
-
-driver_data <- driver_data_wrong_names|>
-  ungroup()|>
-  select(-employment)|>
-  unnest(driver_data)|>
-  unite(industry, code, industry, sep=": ")|>
-  mutate(year=as.numeric(year),
-         mean_value=mean(value, na.rm = TRUE),
-         value=if_else(mean_value<1000, value*1000, value) #if mean value < 1000 must be in 1000's
-  )|>
-  select(-mean_value)
-
-notes <- notes_wrong_names|>
-  select(contains("20"), code, industry)|>
-  unite(industry, code, industry, sep=": ")|>
-  pivot_longer(cols=contains("20"))|>
-  mutate(value=str_replace_all(value, "-"," "),
-         name = stringr::str_extract(name, "\\b\\d{4} Edition\\b"))
 
 #write to rds files----------------
 
