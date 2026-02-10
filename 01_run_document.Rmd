@@ -79,11 +79,6 @@ first_emp <- budget_constraint$employment[budget_constraint$year==min(budget_con
 years_elaspsed <-max(budget_constraint$year)-min(budget_constraint$year) 
 budget_gf <- (last_emp/first_emp)^(1/years_elaspsed)
 
-employment <- employment|>
-  unnest(employment)|>
-  unite(industry, code, industry, sep=": ")|>
-  mutate(year=as.numeric(year))
-
 #derive some "constants" from employment data.
 historic_end <- max(employment$year)
 historic_start <- historic_end-10

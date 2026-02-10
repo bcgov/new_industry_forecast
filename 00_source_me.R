@@ -13,61 +13,11 @@ clean <- function(x) {
   x
 }
 
-fuzzy_right_join <- function(
-    tbbl_correct,
-    tbbl_wrong,
-    correct_join_by,
-    wrong_join_by,
-    max_dist = 3
-) {
-  # Drop grouping to avoid "Adding missing grouping variables" + weird join side effects
-  tbbl_correct <- dplyr::ungroup(tbbl_correct)
-  tbbl_wrong   <- dplyr::ungroup(tbbl_wrong)
-
-  # Exact matches first
-  exact_matches <- dplyr::inner_join(
-    tbbl_correct,
-    tbbl_wrong,
-    by = dplyr::join_by({{ correct_join_by }} == {{ wrong_join_by }})
-  )
-
-  # Unmatched keys only (vectors), no grouping baggage
-  unmatched_correct <- dplyr::anti_join(
-    tbbl_correct,
-    exact_matches,
-    by = dplyr::join_by({{ correct_join_by }})
-  ) |>
-    dplyr::distinct({{ correct_join_by }}) |>
-    dplyr::transmute(correct = {{ correct_join_by }})
-
-  unmatched_wrong <- dplyr::anti_join(
-    tbbl_wrong,
-    exact_matches,
-    by = dplyr::join_by({{ wrong_join_by }})
-  ) |>
-    dplyr::distinct({{ wrong_join_by }}) |>
-    dplyr::transmute(wrong = {{ wrong_join_by }})
-
-  # Fuzzy map from wrong -> best correct
-  map <- tidyr::crossing(unmatched_correct, unmatched_wrong) |>
-    dplyr::mutate(
-      dist = stringdist::stringdist(correct, wrong, method = "lv"),
-      len_diff = abs(nchar(correct) - nchar(wrong))
-    ) |>
-    dplyr::filter(len_diff <= max_dist, dist <= max_dist) |>
-    dplyr::group_by(wrong) |>
-    dplyr::arrange(dist, len_diff) |>
-    dplyr::slice(1)|>
-    dplyr::ungroup()
-
-  # Build fuzzy matches by joining back to full rows
-  fuzzy_matches <- map |>
-    dplyr::inner_join(tbbl_correct, by = dplyr::join_by(correct == {{ correct_join_by }})) |>
-    dplyr::inner_join(tbbl_wrong,   by = dplyr::join_by(wrong   == {{ wrong_join_by }})) |>
-    dplyr::select(-wrong, -dist, -len_diff) |>
-    dplyr::rename({{ correct_join_by }} := correct)
-
-  dplyr::bind_rows(exact_matches, fuzzy_matches)
+normalize_key <- function(x) {
+  x %>%
+    tolower() %>%
+    gsub("[^a-z0-9]", "", .) %>%
+    trimws()
 }
 
 #takes the data from data_store/add_to_pond and adds it to the pond
@@ -80,7 +30,8 @@ employment <-  read_view("historic_lmo_ind_code.xlsx")|>
   select(code=lmo_ind_code, industry=lmo_detailed_industry, year, value=employment)|>
   group_by(code, industry)|>
   nest()|>
-  rename(employment=data)
+  rename(employment=data)|>
+  mutate(.key_norm=normalize_key(industry))
 
 #read in the files with (potentially) incorrect names
 
@@ -93,9 +44,9 @@ old_forecast <- read_view("stokes_forecast.csv", skip = 3)|>
   group_by(industry)|>
   nest()|>
   rename(old_forecast=data)|>
-  fuzzy_right_join(employment, industry, industry)|>
-  ungroup()|>
-  select(-employment)|>
+  mutate(.key_norm=normalize_key(industry))|>
+  inner_join(employment, by = join_by(".key_norm"))|>
+  select(code, industry=industry.y, old_forecast)|>
   unnest(old_forecast)|>
   unite(industry, code, industry, sep=": ")|>
   mutate(year=as.numeric(year))
@@ -106,9 +57,9 @@ driver_data <- read_view("driver.xlsx")|>
   group_by(industry)|>
   nest()|>
   rename(driver_data=data)|>
-  fuzzy_right_join(employment, industry, industry)|>
-  ungroup()|>
-  select(-employment)|>
+  mutate(.key_norm=normalize_key(industry))|>
+  inner_join(employment, by = join_by(".key_norm"))|>
+  select(code, industry=industry.y, driver_data)|>
   unnest(driver_data)|>
   unite(industry, code, industry, sep=": ")|>
   mutate(year=as.numeric(year),
@@ -119,12 +70,18 @@ driver_data <- read_view("driver.xlsx")|>
 
 notes <- read_view("notes.xlsx")|>
   select(industry=contains("name"), starts_with("2"))|>
-  fuzzy_right_join(employment, industry, industry)|>
-  select(contains("20"), code, industry)|>
+  mutate(.key_norm=normalize_key(industry))|>
+  inner_join(employment, by = join_by(".key_norm"))|>
+  select(contains("20"), code, industry=industry.y)|>
   unite(industry, code, industry, sep=": ")|>
   pivot_longer(cols=contains("20"))|>
   mutate(value=str_replace_all(value, "-"," "),
          name = stringr::str_extract(name, "\\b\\d{4} Edition\\b"))
+
+employment <- employment|>
+  unnest(employment)|>
+  unite(industry, code, industry, sep=": ")|>
+  mutate(year=as.numeric(year))
 
 budget_constraint <- read_view("constraint.xlsx") #no industry names
 
