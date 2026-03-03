@@ -12,6 +12,8 @@ library(patchwork)
 library(ggpp)
 #library(bcgovpond)
 library(conflicted)
+conflicts_prefer(dplyr::filter)
+conflicts_prefer(ggplot2::annotate)
 # functions-----------------
 
 #calls function get_cagr 3 times for the 3 time periods of interest
@@ -97,28 +99,23 @@ unnest_cagrs <- function(tbbl, nest, series){
     pivot_wider(names_from = period, values_from = cagr, names_prefix = "CAGR: ")
 }
 # read in the data--------------------------
-employment<- read_rds(here("app_data", "employment.rds"))|>
-  unite("industry", "code", "industry", sep=": ")
+employment<- read_rds(here("app_data", "employment.rds"))
 #calculate some "constants"
-historic_end <- max(employment$employment[[1]]$year)
+historic_end <- max(employment$year)
 historic_start <- historic_end-10
 
-old_forecast<- read_rds(here("app_data", "old_forecast.rds"))|>
-  group_by(industry)|>
-  nest()
+old_forecast<- read_rds(here("app_data", "old_forecast.rds"))
 
 #the raw forecast data------------------
 forecast_already <- read_csv(here("out","current", "forecasts.csv")) %>%
-  group_by(industry, year) %>%
-  summarize(value = last(value))# only the most recent forecast (industry already in "code: name" format)
+  summarize(value = last(value), .by=c(industry, year))# only the most recent forecast (industry already in "code: name" format)
 
 #Forecasts must equal the constraint (first 5 years)-----------------
 constraint <- read_rds(here("app_data", "budget_constraint.rds"))%>%
   rename(constraint=employment)
 
 forecast_totals <- forecast_already%>%
-  group_by(year)%>%
-  summarise(forecast=sum(value))
+  summarise(forecast=sum(value), .by=year)
 
 
 # raw forecasts are adjusted to match either by bend or continue method.---------------
