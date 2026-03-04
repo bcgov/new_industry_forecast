@@ -123,7 +123,9 @@ adjustment <- full_join(forecast_totals, constraint)%>%
   mutate(forecast_over_constraint=forecast/constraint,
          bend=forecast_over_constraint,
          continue=forecast_over_constraint)%>%
-  fill(bend, .direction="down")#the bend method continues scaling at the same rate as the last value of forecast/constraint
+  fill(bend, .direction="down")
+
+#the bend method continues scaling at the same rate as the last value of forecast/constraint
 #the continue adjustment follows the trend in the forecast/constraint beyond its last value
 unconstrained_years <- (max(constraint$year)+1):(max(constraint$year)+6)
 adjustment$continue[6:11] <- predict(lm(forecast_over_constraint~year, data=adjustment), newdata = tibble(year=unconstrained_years))
